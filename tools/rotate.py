@@ -46,7 +46,13 @@ async def main():
     if session_check.get("status") == "logged_in":
         logger.info("✅ Bereits eingeloggt (Session restored)")
     else:
-        logger.info("Nicht eingeloggt — GMX Login wird von GmxService._ensure_mail_session beim nächsten Aufruf gehandhabt")
+        logger.info("Nicht eingeloggt — führe GMX Login durch")
+        login_result = await gmx.login(email=args.gmx_email, password=args.gmx_password, cdp_port=args.cdp_port)
+        if login_result.get("status") == "success":
+            logger.info("✅ GMX Login erfolgreich")
+        else:
+            logger.error(f"❌ GMX Login fehlgeschlagen: {login_result.get('error')}")
+            return
 
     # ═══ Step 1: GMX Alias Rotation ═══
     logger.info("=== GMX Alias Rotation ===")
@@ -68,7 +74,6 @@ async def main():
 
     # ═══ Step 3: Fireworks Login + Onboarding ═══
     logger.info("=== Fireworks Login + Onboarding ===")
-    # Login via CDP
     from fireworks_service import FireworksService
     fw = FireworksService()
     client = None
@@ -76,10 +81,14 @@ async def main():
         client, session_id = await fw._connect(args.cdp_port)
         await client.navigate(session_id, "https://app.fireworks.ai/login")
         await asyncio.sleep(3)
+        # Dismiss cookie banner
+        await fw._dismiss_cookie(client, session_id)
         # Email
-        await fw._fill_input(client, session_id, ['input[name="email"]'], alias)
+        await fw._fill_input(client, session_id, ['input[name="email"]', 'input[type="email"]'], alias)
+        # Password
         await fw._fill_input(client, session_id, ['input[type="password"]'], args.password)
-        await fw._click_text(client, session_id, ["next", "login", "anmelden"])
+        # Click Next/Login
+        await fw._click_text(client, session_id, ["next", "login", "anmelden", "einloggen"])
         await asyncio.sleep(5)
         # Check URL
         url_res = await client.evaluate(session_id, "window.location.href")

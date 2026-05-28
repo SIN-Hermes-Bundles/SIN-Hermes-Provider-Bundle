@@ -614,6 +614,91 @@ class GmxService:
             if client:
                 await client.disconnect()
 
+    async def login(self, email: str, password: str, cdp_port: int = 9222) -> Dict[str, Any]:
+        """GMX Login via CDP. Navigiert zu www.gmx.net, klickt E-Mail, füllt Formular."""
+        client = None
+        try:
+            client, session_id = await self._connect(cdp_port)
+            # Navigate to GMX
+            await client.navigate(session_id, "https://www.gmx.net/")
+            await asyncio.sleep(4)
+            # Click E-Mail
+            await client.evaluate(session_id, """
+            (function() {
+                var as = document.querySelectorAll('a');
+                for (var i=0; i<as.length; i++) {
+                    if (as[i].textContent.trim() === 'E-Mail') { as[i].click(); return true; }
+                }
+                return false;
+            })()
+            """, return_by_value=True)
+            await asyncio.sleep(5)
+            # Check if on login page
+            url_res = await client.evaluate(session_id, "window.location.href")
+            current_url = url_res.get("result", {}).get("value", "")
+            body_res = await client.evaluate(session_id, "document.body.innerText")
+            body_text = body_res.get("result", {}).get("value", "")
+            if "login" in current_url.lower() or "anmelden" in body_text.lower() or "passwort" in body_text.lower():
+                logger.info("GMX Login-Seite erkannt — fülle Formular")
+                # Fill email
+                escaped_email = email.replace("'", "\\'")
+                await client.evaluate(session_id, f"""
+                (function() {{
+                    var inp = document.querySelector('input[name="email"], input[type="email"], input[id="login-email"]');
+                    if (!inp) inp = document.querySelector('input[placeholder*="mail" i]');
+                    if (!inp) {{ var inputs = document.querySelectorAll('input'); for (var i=0; i<inputs.length; i++) {{ if (inputs[i].type === 'text' || inputs[i].type === 'email') {{ inp = inputs[i]; break; }} }} }}
+                    if (inp) {{
+                        var ns = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+                        ns.call(inp, '{escaped_email}');
+                        inp.dispatchEvent(new Event('input', {{bubbles: true}}));
+                        return true;
+                    }}
+                    return false;
+                }})()
+                """, return_by_value=True)
+                await asyncio.sleep(1)
+                # Fill password
+                escaped_pw = password.replace("'", "\\'")
+                await client.evaluate(session_id, f"""
+                (function() {{
+                    var inp = document.querySelector('input[type="password"], input[name="password"]');
+                    if (inp) {{
+                        var ns = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+                        ns.call(inp, '{escaped_pw}');
+                        inp.dispatchEvent(new Event('input', {{bubbles: true}}));
+                        return true;
+                    }}
+                    return false;
+                }})()
+                """, return_by_value=True)
+                await asyncio.sleep(1)
+                # Click login button
+                await client.evaluate(session_id, """
+                (function() {
+                    var btns = document.querySelectorAll('button, a[role="button"], input[type="submit"]');
+                    for (var i=0; i<btns.length; i++) {
+                        var t = btns[i].textContent.trim().toLowerCase();
+                        if (t.includes('login') || t.includes('anmelden') || t.includes('weiter') || t.includes('einloggen')) {
+                            btns[i].click(); return true;
+                        }
+                    }
+                    return false;
+                })()
+                """, return_by_value=True)
+                await asyncio.sleep(8)
+                # Check result
+                url_res = await client.evaluate(session_id, "window.location.href")
+                current_url = url_res.get("result", {}).get("value", "")
+                if "navigator.gmx.net" in current_url or "3c-bap.gmx.net" in current_url:
+                    return {"status": "success", "current_url": current_url}
+                return {"status": "error", "error": "Login fehlgeschlagen", "current_url": current_url}
+            return {"status": "already_logged_in", "current_url": current_url}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+        finally:
+            if client:
+                await client.disconnect()
+
     # ── Public Helpers ────────────────────────────────────────────────────
 
     async def check_session(self, cdp_port: int = 9222) -> Dict[str, Any]:

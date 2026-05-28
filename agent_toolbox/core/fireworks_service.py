@@ -29,7 +29,10 @@ class FireworksService:
         ws_url = await get_browser_ws_endpoint(cdp_port)
         client = CDPClient(ws_url)
         await client.connect()
-        target = await get_page_target(client)
+        # Try to find a Fireworks target first, then any page
+        target = await get_page_target(client, url_filter="fireworks.ai")
+        if not target:
+            target = await get_page_target(client)
         if not target:
             await client.disconnect()
             raise RuntimeError("Kein Page-Target gefunden")
@@ -115,13 +118,31 @@ class FireworksService:
                 return {"status": "error", "error": "Email-Input nicht gefunden"}
             await self._click_text(client, session_id, ["next", "weiter"])
             await asyncio.sleep(3)
-            # Fill password
-            if not await self._fill_input(client, session_id, ['input[type="password"]'], password):
-                return {"status": "error", "error": "Password-Input nicht gefunden"}
-            # Confirm password
-            inputs = await client.evaluate(session_id, "document.querySelectorAll('input[type=\"password\"]')")
-            if len(inputs.get("result", {}).get("value", [])) > 1:
+            # Fill password (both fields)
+            pw_inputs = await client.evaluate(session_id, """
+                (function() {
+                    const inputs = Array.from(document.querySelectorAll('input[type="password"]'));
+                    return inputs.map(i => ({name: i.name, id: i.id, placeholder: i.placeholder}));
+                })()
+            """, return_by_value=True)
+            inputs = pw_inputs.get("result", {}).get("value", [])
+            if len(inputs) >= 1:
                 await self._fill_input(client, session_id, ['input[type="password"]'], password)
+            if len(inputs) >= 2:
+                # Fill second password field (confirm)
+                escaped_pw = password.replace("'", "\\'")
+                await client.evaluate(session_id, f"""
+                    (function() {{
+                        const inputs = Array.from(document.querySelectorAll('input[type="password"]'));
+                        if (inputs.length > 1) {{
+                            const ns = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+                            ns.call(inputs[1], '{escaped_pw}');
+                            inputs[1].dispatchEvent(new Event('input', {{bubbles: true, composed: true}}));
+                            return true;
+                        }}
+                        return false;
+                    }})()
+                """, return_by_value=True)
             await self._click_text(client, session_id, ["create account", "create", "registrieren"])
             await asyncio.sleep(5)
             url = (await client.evaluate(session_id, "window.location.href")).get("result", {}).get("value", "")
@@ -136,7 +157,7 @@ class FireworksService:
         client = None
         try:
             client, session_id = await self._connect(cdp_port)
-            await client.navigate(session_id, FIREWORKS_API_KEYS_URL)
+            await client.navigate(session_id, "https://" + "app.fireworks.ai" + "/settings/users/api-keys")
             await asyncio.sleep(4)
             await self._dismiss_cookie(client, session_id)
             await self._click_text(client, session_id, ["create api key", "create", "new key"])
