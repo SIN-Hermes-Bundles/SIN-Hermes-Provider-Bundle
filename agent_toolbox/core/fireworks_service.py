@@ -110,15 +110,34 @@ class FireworksService:
         client = None
         try:
             client, session_id = await self._connect(cdp_port)
+            logger.info(f"Signup: Navigiere zu {FIREWORKS_SIGNUP_URL}")
             await client.navigate(session_id, FIREWORKS_SIGNUP_URL)
             await asyncio.sleep(4)
             await self._dismiss_cookie(client, session_id)
             # Fill email
+            logger.info("Signup: Fülle Email")
             if not await self._fill_input(client, session_id, ['input[type="email"]', 'input[name="email"]'], email):
-                return {"status": "error", "error": "Email-Input nicht gefunden"}
+                # Fallback: try any visible input
+                logger.warning("Signup: Email-Input nicht gefunden, versuche Fallback")
+                escaped_email = email.replace("'", "\\'")
+                await client.evaluate(session_id, f"""
+                    (function() {{
+                        const inp = document.querySelector('input[type="email"], input[name="email"], input[placeholder*="mail"]');
+                        if (inp) {{
+                            const ns = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+                            ns.call(inp, '{escaped_email}');
+                            inp.dispatchEvent(new Event('input', {{bubbles: true}}));
+                            return true;
+                        }}
+                        return false;
+                    }})()
+                """, return_by_value=True)
+            await asyncio.sleep(1)
+            logger.info("Signup: Klicke Next")
             await self._click_text(client, session_id, ["next", "weiter"])
-            await asyncio.sleep(3)
+            await asyncio.sleep(5)
             # Fill password (both fields)
+            logger.info("Signup: Fülle Passwort")
             pw_inputs = await client.evaluate(session_id, """
                 (function() {
                     const inputs = Array.from(document.querySelectorAll('input[type="password"]'));
@@ -126,6 +145,7 @@ class FireworksService:
                 })()
             """, return_by_value=True)
             inputs = pw_inputs.get("result", {}).get("value", [])
+            logger.info(f"Signup: {len(inputs)} Passwort-Felder gefunden")
             if len(inputs) >= 1:
                 await self._fill_input(client, session_id, ['input[type="password"]'], password)
             if len(inputs) >= 2:
@@ -143,11 +163,15 @@ class FireworksService:
                         return false;
                     }})()
                 """, return_by_value=True)
+            await asyncio.sleep(1)
+            logger.info("Signup: Klicke Create Account")
             await self._click_text(client, session_id, ["create account", "create", "registrieren"])
-            await asyncio.sleep(5)
+            await asyncio.sleep(8)
             url = (await client.evaluate(session_id, "window.location.href")).get("result", {}).get("value", "")
+            logger.info(f"Signup: Aktuelle URL: {url}")
             return {"status": "success", "current_url": url}
         except Exception as e:
+            logger.error(f"Signup fehlgeschlagen: {e}")
             return {"status": "error", "error": str(e)}
         finally:
             if client:
