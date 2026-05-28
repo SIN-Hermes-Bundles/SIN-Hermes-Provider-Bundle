@@ -234,7 +234,7 @@ class GmxService:
                 var parts = line.split(/\\s+/);
                 var email = parts[parts.length-1];
                 if (!email.includes('@gmx.')) continue;
-                if (email === 'opensin@gmx.de') continue;
+                if (email === 'delqhi@gmx.de') continue;
                 var allEls = document.querySelectorAll('span, div, td, p, a');
                 for (var j=0; j<allEls.length; j++) {
                     var el = allEls[j];

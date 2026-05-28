@@ -27,7 +27,7 @@ logger = logging.getLogger("rotate")
 async def main():
     parser = argparse.ArgumentParser(description="GMX + Fireworks Rotation")
     parser.add_argument("alias", nargs="?", help="Optional alias name")
-    parser.add_argument("--gmx-email", default="opensin@gmx.de", help="GMX account email")
+    parser.add_argument("--gmx-email", default="delqhi@gmx.de", help="GMX account email")
     parser.add_argument("--gmx-password", default="ZOE.jerry2024", help="GMX account password")
     parser.add_argument("--password", default="ZOE.jerry2024!", help="Fireworks account password")
     parser.add_argument("--save", action="store_true", default=True, help="Save API key to pool")
