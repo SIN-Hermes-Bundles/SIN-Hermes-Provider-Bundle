@@ -13,6 +13,8 @@ echo "  - Fireworks Config pointing to local router"
 echo "  - 412 PRECONDITION_FAILED retry patch"
 echo "  - User-Agent spoof patch"
 echo "  - Unlimited max_turns"
+echo "  - PR #6318 tool_search backend (7 files: tool_search, registry, model_tools, prompt_builder, system_prompt, agent_init, conversation_loop)"
+echo "  - Model Discovery: custom:* provider support (model_tools.py)"
 echo ""
 
 # 1. Router Config (localhost:9998)
@@ -88,13 +90,26 @@ if ! grep -q "import _ua_patch" "$HERMES_HOME/hermes-agent/run_agent.py" 2>/dev/
   echo "UA-Spoof patch applied."
 fi
 
-# 6. Set unlimited max_turns
+# 6. PR #6318 tool_search patches (7 files) + custom:* provider model discovery
+echo "Applying PR #6318 tool_search patches..."
+curl -fsSL "$REPO/patches/tools/tool_search.py"   -o "$HERMES_HOME/hermes-agent/tools/tool_search.py"
+curl -fsSL "$REPO/patches/tools/registry.py"      -o "$HERMES_HOME/hermes-agent/tools/registry.py"
+curl -fsSL "$REPO/patches/model_tools.py"          -o "$HERMES_HOME/hermes-agent/model_tools.py"
+curl -fsSL "$REPO/patches/agent/prompt_builder.py" -o "$HERMES_HOME/hermes-agent/agent/prompt_builder.py"
+curl -fsSL "$REPO/patches/agent/system_prompt.py"  -o "$HERMES_HOME/hermes-agent/agent/system_prompt.py"
+curl -fsSL "$REPO/patches/agent/agent_init.py"     -o "$HERMES_HOME/hermes-agent/agent/agent_init.py"
+curl -fsSL "$REPO/patches/agent/conversation_loop.py" -o "$HERMES_HOME/hermes-agent/agent/conversation_loop.py"
+curl -fsSL "$REPO/patches/hermes_cli/models.py"    -o "$HERMES_HOME/hermes-agent/hermes_cli/models.py"
+find "$HERMES_HOME/hermes-agent" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+echo "PR #6318 patches applied (tool_search + model discovery)."
+
+# 8. Set unlimited max_turns
 if ! grep -q "max_turns" "$HERMES_HOME/config.yaml"; then
   printf '\nagent:\n  max_turns: 999999\n  max_iterations: 999999\n' >> "$HERMES_HOME/config.yaml"
   echo "Set max_turns=999999 (unlimited)"
 fi
 
-# 7. Install own skill into Hermes
+# 9. Install own skill into Hermes
 mkdir -p "$HERMES_HOME/skills/survey/sin-hermes-provider-setup"
 curl -fsSL "$REPO/skills/sin-hermes-provider-setup/SKILL.md" -o "$HERMES_HOME/skills/survey/sin-hermes-provider-setup/SKILL.md"
 echo "Provider setup skill installed to Hermes."

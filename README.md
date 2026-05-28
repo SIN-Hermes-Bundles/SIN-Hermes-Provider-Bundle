@@ -155,7 +155,9 @@ curl https://sinatorpool-router.delqhi.com/inference/v1/models \
 3. **10 Proxy Daemons** — `com.sinator.pool-proxy-{8888..8897}` via launchd
 4. **412 Retry Patch** — `error_classifier.py`: 412 + "suspended" -> `billing` + retryable
 5. **UA-Spoof Patch** — `_ua_patch.py` + `import _ua_patch` in `run_agent.py`
-6. **Unlimited max_turns** — `999999` (kein Iterations-Limit)
+6. **PR #6318 tool_search** — 7 Dateien: `tool_search.py`, `registry.py`, `model_tools.py`, `prompt_builder.py`, `system_prompt.py`, `agent_init.py`, `conversation_loop.py`
+7. **Model Discovery** — `custom:*` Provider Support in `hermes_cli/models.py`
+8. **Unlimited max_turns** — `999999` (kein Iterations-Limit)
 
 ## Management
 
@@ -198,6 +200,17 @@ tail -f /tmp/pool-router-launchd.log
 │   ├── rotate.py
 │   ├── sinator-cli.py
 │   └── manage_services.sh
+├── patches/
+│   ├── error_classifier_412.patch        # 412 Retry Fix
+│   ├── model_tools.py                    # PR #6318: token estimation
+│   ├── tool_search.py                    # PR #6318: tool_search backend
+│   ├── tools/registry.py                 # PR #6318: deferred loading
+│   ├── agent/                            # PR #6318: agent integration
+│   │   ├── prompt_builder.py
+│   │   ├── system_prompt.py
+│   │   ├── agent_init.py
+│   │   └── conversation_loop.py
+│   └── hermes_cli/models.py              # custom:* provider support
 ├── docs/
 ├── tests/
 └── README.md
@@ -214,4 +227,4 @@ tail -f /tmp/pool-router-launchd.log
 
 ---
 
-*Stand: 2026-05-28 | 218 Keys | 10 Proxys + Pool-Router | silent swap Fix*
+*Stand: 2026-05-29 | 218 Keys | 10 Proxys + Pool-Router | silent swap | tool_search (PR #6318) | custom:* Model Discovery*
