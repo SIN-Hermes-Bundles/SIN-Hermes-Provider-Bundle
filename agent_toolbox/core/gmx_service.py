@@ -685,161 +685,110 @@ class GmxService:
     # ── OTP / Confirm URL ───────────────────────────────────────────────────
     # OTP bleibt auf CDP — funktioniert, komplex (MailCheck Extension, OOPIF)
 
-    async def _otp_connect(self, cdp_port: int) -> Tuple[CDPClient, str]:
-        ws_url = await get_browser_ws_endpoint(cdp_port)
-        client = CDPClient(ws_url)
-        await client.connect()
-        targets = await client.get_targets()
-        target = None
-        for t in targets:
-            if t.get("type") == "page" and "sid=" in t.get("url", "") and "gmx.net" in t.get("url", ""):
-                target = t
-                break
-        if not target:
-            target = await get_page_target(client, url_filter="gmx.net")
-        if not target:
-            await client.disconnect()
-            raise RuntimeError("Kein GMX Page-Target gefunden")
-        session_id = await client.attach_to_target(target["targetId"])
-        await client.send_to_session(session_id, "Page.enable")
-        await client.send_to_session(session_id, "Runtime.enable")
-        return client, session_id
-
-    async def read_otp(self, sender_filter: str = "fireworks", max_retries: int = 12, retry_delay: int = 5, cdp_port: int = 9222) -> Dict[str, Any]:
+    async def read_otp(self, sender_filter: str = "fireworks", max_retries: int = 25, retry_delay: int = 8, cdp_port: int = 9222) -> Dict[str, Any]:
         start_time = time.time()
-        client = None
         try:
-            client, session_id = await self._otp_connect(cdp_port)
-            url_result = await client.evaluate(session_id, "window.location.href")
-            current_url = url_result.get("result", {}).get("value", "")
-            sid = None
-            if "bap.navigator.gmx.net" in current_url and "sid=" in current_url:
-                sid = re.search(r'[?&]sid=([^&]+)', current_url)
-                sid = sid.group(1) if sid else None
-            if not sid:
-                await client.navigate(session_id, "https://www.gmx.net/")
-                await asyncio.sleep(4)
-                body = await client.evaluate(session_id, "document.body.innerText")
-                text = body.get("result", {}).get("value", "")
-                if "Sie sind eingeloggt" not in text and "Zum Postfach" not in text:
-                    return {"status": "error", "otp_url": None, "error": "Nicht eingeloggt"}
-                await client.evaluate(session_id, """
-                (function(){
-                    var els = Array.from(document.querySelectorAll('a, button, [role=link], nav a'));
-                    var el = els.find(e => (e.textContent||'').trim() === 'E-Mail');
-                    if (el) { el.click(); return true; }
-                    return false;
-                })()
-                """, return_by_value=True)
-                await asyncio.sleep(5)
-                url_result = await client.evaluate(session_id, "window.location.href")
-                current_url = url_result.get("result", {}).get("value", "")
-                sid = re.search(r'[?&]sid=([^&]+)', current_url)
-                sid = sid.group(1) if sid else None
-            if not sid:
-                return {"status": "error", "otp_url": None, "error": "Kein SID"}
-            mail_url = f"https://bap.navigator.gmx.net/mail?sid={sid}"
-            await client.navigate(session_id, mail_url)
-            await asyncio.sleep(6)
-            iframe_result = await client.evaluate(session_id, """
-            (function() {
-                var iframe = document.querySelector('#thirdPartyFrame_mail');
-                return iframe ? iframe.src : null;
-            })()
-            """, return_by_value=True)
-            iframe_src = iframe_result.get("result", {}).get("value", "")
-            if not iframe_src:
-                return {"status": "error", "otp_url": None, "error": "Mail iframe nicht gefunden"}
-            await client.navigate(session_id, iframe_src)
-            await asyncio.sleep(5)
-            cookies_res = await client.send_to_session(session_id, "Network.getAllCookies")
-            jsessionid = None
-            for c in cookies_res.get("cookies", []):
-                if c.get("name") == "JSESSIONID":
-                    jsessionid = c.get("value", "")
-                    break
-            if not jsessionid:
-                current_url_result = await client.evaluate(session_id, "window.location.href")
-                current_page_url = current_url_result.get("result", {}).get("value", "")
-                jsessionid_match = re.search(r'jsessionid=([^?&;]+)', current_page_url)
-                jsessionid = jsessionid_match.group(1) if jsessionid_match else None
-            if not jsessionid:
-                return {"status": "error", "otp_url": None, "error": "Kein JSESSIONID"}
-            known_ids = set()
-            for i in range(max_retries):
-                logger.info(f"OTP-Suche: Versuch {i+1}/{max_retries}")
-                safe_filter = sender_filter.lower().replace("'", "\\'")
-                items_js = f"""
-                (function() {{
-                    function findItems(root) {{
-                        let items = [];
-                        const all = root.querySelectorAll('*');
-                        for (const el of all) {{
-                            if (el.tagName.toLowerCase() === 'list-mail-item') {{
-                                const text = (el.textContent || '').toLowerCase();
-                                if (text.includes('{safe_filter}')) {{
-                                    const idAttr = el.getAttribute('id');
-                                    const mailId = idAttr ? idAttr.replace(/^id/, '') : null;
-                                    if (mailId) {{
-                                        items.push({{mailId: mailId, text: el.textContent.trim().slice(0, 120)}});
-                                    }}
-                                }}
-                            }}
-                            if (el.shadowRoot) {{
-                                items = items.concat(findItems(el.shadowRoot));
-                            }}
-                        }}
-                        return items;
-                    }}
-                    return findItems(document.body);
-                }})()
-                """
-                items_result = await client.evaluate(session_id, items_js, return_by_value=True)
-                items = items_result.get("result", {}).get("value", [])
-                new_items = [it for it in items if it.get("mailId") not in known_ids]
-                if new_items:
-                    cookies_res = await client.send_to_session(session_id, "Network.getAllCookies")
-                    cookies = cookies_res.get("cookies", [])
-                    essential = {"JSESSIONID", "SESSION", "lps", "navigator", "iac_token"}
-                    cookie_dict = {c.get("name"): c.get("value", "") for c in cookies if c.get("name") in essential}
-                    headers = {
-                        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                        "Referer": "https://3c-bap.gmx.net/mail/client/start",
+            page = await self._pw_connect(cdp_port)
+            
+            # Ensure we're in the GMX inbox
+            current_url = page.url
+            logger.info(f"Current URL: {current_url}")
+            if "navigator.gmx.net" not in current_url and "bap.navigator.gmx.net" not in current_url:
+                logger.info("Navigating to GMX inbox...")
+                await page.goto("https://www.gmx.net/", wait_until="domcontentloaded")
+                await asyncio.sleep(3)
+                for _ in range(5):
+                    try:
+                        await page.locator('a:has-text("E-Mail")').first.click()
+                        await asyncio.sleep(5)
+                        break
+                    except:
+                        await asyncio.sleep(2)
+            
+            logger.info(f"Inbox URL: {page.url}")
+            
+            # Poll for email
+            for attempt in range(max_retries):
+                logger.info(f"OTP search attempt {attempt+1}/{max_retries}")
+                
+                # Refresh page to see new emails
+                if attempt > 0:
+                    try:
+                        await page.reload(wait_until="domcontentloaded")
+                        await asyncio.sleep(3)
+                    except:
+                        pass
+                
+                # Strategy: Find any element containing 'fireworks' and click it
+                try:
+                    # First, try to find the email by text content
+                    elements = await page.locator('text=/fireworks/i').all()
+                    logger.info(f"Found {len(elements)} elements with 'fireworks' text")
+                    
+                    if elements:
+                        for el in elements:
+                            try:
+                                await el.click()
+                                logger.info("Clicked on fireworks element")
+                                await asyncio.sleep(5)
+                                break
+                            except:
+                                pass
+                except Exception as e:
+                    logger.info(f"Text search failed: {e}")
+                
+                # Strategy 2: Try list-mail-item
+                try:
+                    items = await page.locator('list-mail-item').all()
+                    logger.info(f"Found {len(items)} list-mail-item elements")
+                    
+                    for item in items:
+                        text = await item.text_content() or ""
+                        if sender_filter.lower() in text.lower():
+                            logger.info(f"Clicking list-mail-item with fireworks text")
+                            await item.click()
+                            await asyncio.sleep(5)
+                            break
+                except Exception as e:
+                    logger.info(f"list-mail-item failed: {e}")
+                
+                # Extract all text from page and frames
+                all_text = ""
+                try:
+                    all_text += await page.evaluate("() => document.body.innerText") or ""
+                except:
+                    pass
+                
+                for frame in page.frames:
+                    try:
+                        frame_text = await frame.evaluate("() => document.body.innerText") or ""
+                        all_text += "\n" + frame_text
+                    except:
+                        pass
+                
+                # Search for Fireworks verify URLs
+                urls = re.findall(r'https://app\.fireworks\.ai/[^\s"\'<>]+', all_text)
+                candidates = [u for u in urls if any(k in u.lower() for k in ["confirm", "verify", "token", "auth", "activate", "signup"])]
+                
+                if candidates:
+                    confirm_url = html_module.unescape(candidates[0])
+                    logger.info(f"OTP URL found: {confirm_url[:80]}...")
+                    return {
+                        "status": "success",
+                        "otp_url": confirm_url,
+                        "execution_time": f"{time.time()-start_time:.2f}s"
                     }
-                    async with httpx.AsyncClient(cookies=cookie_dict, follow_redirects=True, timeout=20) as http:
-                        for item in new_items[:5]:
-                            mail_id = item.get("mailId")
-                            if not mail_id:
-                                continue
-                            for suffix in ["true", "false"]:
-                                email_url = f"https://3c-bap.gmx.net/mail/client/mailbody/tmai{mail_id}/{suffix};jsessionid={jsessionid}"
-                                try:
-                                    resp = await http.get(email_url, headers=headers)
-                                    if resp.status_code == 200 and len(resp.text) > 1000:
-                                        urls = re.findall(r'https://app\.fireworks\.ai/[^\s"\'<>]+', resp.text)
-                                        candidates = [u for u in urls if any(k in u.lower() for k in ["confirm", "verify", "token", "auth", "activate", "signup"])]
-                                        if candidates:
-                                            confirm_url = html_module.unescape(candidates[0])
-                                            return {"status": "success", "otp_url": confirm_url, "mail_id": mail_id,
-                                                    "execution_time": f"{time.time()-start_time:.2f}s"}
-                                except Exception:
-                                    pass
-                for it in items:
-                    mid = it.get("mailId")
-                    if mid:
-                        known_ids.add(mid)
-                if i < max_retries - 1:
+                
+                if attempt < max_retries - 1:
+                    logger.info(f"No URL found, waiting {retry_delay}s...")
                     await asyncio.sleep(retry_delay)
+            
+            logger.warning("OTP email not found after all attempts")
             return {"status": "not_found", "otp_url": None, "error": "Nicht gefunden"}
+            
         except Exception as e:
-            logger.error(f"OTP-Suche fehlgeschlagen: {e}")
+            logger.error(f"OTP search failed: {e}")
             return {"status": "error", "otp_url": None, "error": str(e)}
-        finally:
-            if client:
-                await client.disconnect()
-
-    # ── Public Helpers ────────────────────────────────────────────────────
 
     async def check_session(self, cdp_port: int = 9222) -> Dict[str, Any]:
         try:
