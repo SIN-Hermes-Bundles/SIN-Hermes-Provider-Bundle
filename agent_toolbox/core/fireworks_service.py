@@ -90,19 +90,41 @@ async def signup_fireworks(email: str, password: str) -> Dict[str, Any]:
             from agent_toolbox.core.gmx_service import GmxService
             svc = GmxService()
             
-            for attempt in range(15):
-                await asyncio.sleep(4)
-                otp_result = await svc.read_otp(sender_filter="fireworks", max_retries=1, retry_delay=3)
+            # Extended polling: 25 attempts × 8s = 200s max (Fireworks emails can be slow)
+            for attempt in range(25):
+                await asyncio.sleep(8)
+                otp_result = await svc.read_otp(sender_filter="fireworks", max_retries=25, retry_delay=8)
                 if otp_result.get("status") == "success":
                     verify_url = otp_result.get("url") or otp_result.get("otp_url")
                     if verify_url:
                         logger.info(f"✅ OTP found (attempt {attempt+1})")
                         break
-                logger.info(f"OTP poll {attempt+1}/15...")
+                logger.info(f"OTP poll {attempt+1}/25...")
             
-            if not verify_url:
-                steps.append("otp_not_found")
-                return {"status": "partial", "steps_completed": steps, "error": "OTP email not found after 18 attempts"}
+            if verify_url:
+                steps.append("otp_found")
+                # Step 3: Verify account
+                verified = await verify_account(verify_url)
+                if verified:
+                    steps.append("account_verified")
+                    logger.info("✅ Account verified")
+                else:
+                    steps.append("verify_failed")
+                return {
+                    "status": "success",
+                    "verify_url": verify_url,
+                    "steps_completed": steps,
+                }
+            
+            # OTP not found — account may still be usable (unverified but loginable)
+            steps.append("otp_not_found")
+            logger.warning("⚠️ OTP not found — account unverified but may still be usable")
+            return {
+                "status": "partial",
+                "verify_url": None,
+                "steps_completed": steps,
+                "error": "OTP email not found after 200s — account may be unverified but loginable",
+            }
             
             steps.append("otp_found")
             

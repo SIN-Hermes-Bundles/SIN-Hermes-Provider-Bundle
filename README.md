@@ -3,7 +3,7 @@
 Automated GMX alias rotation → Fireworks AI account → API key pool.
 OpenAI-compatible proxy with automatic key rotation on rate-limits.
 
-**Backend Port:** `8000` | **Dashboard Repo:** [SINator-dashboard](https://github.com/SIN-Rotator/SINator-dashboard) | **HeyPiggy Repo:** [SINator-heypiggy](https://github.com/SIN-Rotator/SINator-heypiggy)
+**Backend Port:** `8000` | **Pool-Router:** `9998` | **Dashboard Repo:** [SINator-dashboard](https://github.com/SIN-Rotator/SINator-dashboard) | **HeyPiggy Repo:** [SINator-heypiggy](https://github.com/SIN-Rotator/SINator-heypiggy) | **[📖 Installationsanleitung](#installation)**
 
 ## EINE Base-URL — Pool-Router mit Auto-Failover
 
@@ -31,33 +31,131 @@ OpenAI-compatible proxy with automatic key rotation on rate-limits.
 
 Jeder Proxy ist eine eigene aiohttp-Instanz mit charset-Fix, eigenem API-Key aus dem Pool (218 Keys), und launchd-Autostart.
 
-## Quick Start
+## Installation
+
+### 1. Voraussetzungen
+
+- **Python 3.11+** mit `pip3`
+- **Google Chrome** (für Browser-Automation)
+- **Homebrew** (optional, für Cloudflare Tunnel)
+- **Hermes CLI** (optional, für Client-Nutzung)
+
+### 2. Repository klonen
 
 ```bash
-# Mit dem Dashboard-Launcher (empfohlen):
+git clone https://github.com/SIN-Rotator/SINator-FireworksAI ~/dev/SINator-fireworksai
+cd ~/dev/SINator-fireworksai
+```
+
+### 3. Python Dependencies
+
+```bash
+pip3 install fastapi uvicorn httpx playwright aiohttp
+python3 -m playwright install chromium
+```
+
+### 4. Backend starten (`:8000`)
+
+```bash
+python3 agent_toolbox/start_toolbox.py
+```
+
+➡️ Swagger UI: http://localhost:8000/docs
+➡️ Dashboard:  http://localhost:8000/dashboard
+
+### 5. Pool-Proxy + Router starten (`:8888-:8897`, `:9998`)
+
+```bash
+# Alle 10 Proxys + Router auf einmal:
+bash proxy/start-multi.sh
+
+# Oder einzeln:
+python3 scripts/pool-router.py &                     # Router :9998
+SIN_PROXY_PORT=8888 python3 proxy/server.py &        # Proxy  :8888
+SIN_PROXY_PORT=8889 python3 proxy/server.py &        # Proxy  :8889
+# ... bis :8897
+```
+
+Health-Check:
+```bash
+curl http://localhost:9998/health
+curl http://localhost:8000/health
+```
+
+### 6. Chrome starten
+
+GMX Session erfordert Chrome mit Profile 73 (simoneschulze):
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --user-data-dir="/Users/simoneschulze/Library/Application Support/Google Chrome" \
+  --profile-directory="Profile 73" \
+  --remote-debugging-port=9222 \
+  --no-first-run \
+  --no-default-browser-check &
+```
+
+### 7. Betriebssystem starten (launchd — automatischer Start)
+
+```bash
+./tools/manage_services.sh install
+./tools/manage_services.sh start
+./tools/manage_services.sh status
+```
+
+### 8. Key Pool füllen
+
+```bash
+# Einmalige Rotation (GMX Alias → Fireworks Signup → API Key):
+python3 tools/rotate.py
+
+# Pool-Status prüfen:
+curl http://localhost:8000/api/v1/pool/stats
+
+# Automatische Rotation (alle 90s):
+python3 tools/batch_rotate.py
+```
+
+### 9. Cloudflare Tunnel (optional — öffentlicher Zugriff)
+
+```bash
+# Tunnel starten:
+./tools/start_tunnel.sh
+
+# Als launchd-Dienst installieren (Autostart):
+./tools/start_tunnel.sh --install
+
+# Tunnel-URL anzeigen:
+./tools/start_tunnel.sh --status
+```
+
+### 10. (Optional) Dashboard-Launcher
+
+Das vollständige System (Fireworks + HeyPiggy + Dashboard + Tauri App):
+
+```bash
 cd ~/dev/SINator-dashboard
 ./start.sh
-# → Startet Fireworks (:8000) + HeyPiggy (:8002) + Dashboard (:3000) + Tauri App
-
-# Oder standalone:
-python agent_toolbox/start_toolbox.py
-# → http://localhost:8000/docs
 ```
+
+---
+
+## Client-Konfiguration
 
 ---
 
 ## Architecture
 
 ```
-Clients (opencode, Cursor, etc.)
+Clients (opencode, Cursor, Hermes, etc.)
   ↓ OpenAI-compatible API
 Pool-Router (:9998, ThreadingMixIn)
   ↓ Auto-Failover über 10 Proxys
 Pool Proxys (:8888-:8897, aiohttp SSE)
   ↓ Key rotation + silent swap
 Backend (:8000, FastAPI)
-  ↓ PoolManager + Keychain
-Chrome + CUA Driver
+  ↓ PoolManager + ConfigManager
+Chrome + Playwright + CUA (Onboarding only)
   ↓ Browser automation
 GMX → Fireworks AI → API Key
 ```
@@ -70,8 +168,6 @@ GMX → Fireworks AI → API Key
 | `com.sinator.pool-router` | :9998 | Pool-Router mit Auto-Failover |
 | `com.sinator.pool-proxy-{8888..8897}` | :8888-:8897 | 10× OpenAI-compatible proxies with silent swap |
 | `com.sinator.pages` | :8040 | Landing page |
-| `com.sinator.chrome` | — | Chrome lifecycle |
-| `com.sinator.cua-driver` | — | macOS AX automation |
 
 ---
 
@@ -110,9 +206,12 @@ cd ~/dev/SINator-dashboard && ./start.sh
 }
 ```
 
-**Umgebungsvariable:**
-```bash
-export FIREWORKS_API_KEY="<DEIN_API_KEY>"
+**Hermes (`~/.hermes/config.yaml`):**
+```yaml
+custom_providers:
+  - name: fireworks
+    base_url: http://localhost:9998/inference/v1
+    key_env: FIREWORKS_AI_API_KEY
 ```
 
 **Python:**
@@ -122,6 +221,8 @@ client = OpenAI(
     base_url="http://localhost:9998/inference/v1",
     api_key="<DEIN_API_KEY>",
 )
+# List models (via Pool-Proxy /v1/models)
+models = client.models.list()
 ```
 
 ### Remote (andere Macs)
@@ -155,9 +256,8 @@ curl https://sinatorpool-router.delqhi.com/inference/v1/models \
 3. **10 Proxy Daemons** — `com.sinator.pool-proxy-{8888..8897}` via launchd
 4. **412 Retry Patch** — `error_classifier.py`: 412 + "suspended" -> `billing` + retryable
 5. **UA-Spoof Patch** — `_ua_patch.py` + `import _ua_patch` in `run_agent.py`
-6. **PR #6318 tool_search** — 7 Dateien: `tool_search.py`, `registry.py`, `model_tools.py`, `prompt_builder.py`, `system_prompt.py`, `agent_init.py`, `conversation_loop.py`
-7. **Model Discovery** — `custom:*` Provider Support in `hermes_cli/models.py`
-8. **Unlimited max_turns** — `999999` (kein Iterations-Limit)
+6. **Unlimited max_turns** — `999999` (kein Iterations-Limit)
+7. **Model Discovery** — Pool-Proxy `/v1/models` Handler (Hermes `custom:*` provider)
 
 ## Management
 
@@ -176,43 +276,42 @@ launchctl list | grep pool-proxy
 
 # Pool-Router Logs
 tail -f /tmp/pool-router-launchd.log
+
+# Einen Rotation-Durchlauf testen
+python tools/rotate.py
 ```
 
 ## Struktur
 
 ```
 ├── agent_toolbox/
-│   └── core/
-│       ├── gmx_service.py              # GMX Session + Alias-Rotation + OTP
-│       ├── fireworks_service.py        # Fireworks Registration + API-Key
-│       ├── cdp_client.py               # Chrome DevTools Protocol Client
-│       └── pool_manager.py             # API-Key Pool-Manager (Lease/Return)
+│   ├── core/
+│   │   ├── gmx_service.py           # GMX Session + Alias-Rotation (Playwright-native)
+│   │   ├── fireworks_service.py     # Fireworks Signup/Login/API-Key (Playwright+CUA)
+│   │   ├── pool_manager.py          # API-Key Pool-Manager (Lease/Return/Stats)
+│   │   ├── config_manager.py        # GMX+FW Credentials (data/config.json)
+│   │   └── cua_helper.py            # CUA Window Detection (Onboarding only)
+│   └── api/
+│       └── routes/
+│           ├── config.py              # GET/POST /api/v1/config
+│           ├── pool.py                # Pool-CRUD + Stats
+│           └── gmx.py                 # GMX Alias API
 ├── proxy/
-│   ├── __init__.py                     # Spiegel von ~/.sin-pool/
-│   ├── config.py
-│   ├── key_cache.py
-│   ├── pool_client.py
-│   ├── server.py                       # silent swap Fix (412/429)
-│   ├── setup.sh
-│   └── start-multi.sh                  # 10 Proxys starten
+│   ├── server.py                    # Pool-Proxy + /v1/models Handler
+│   └── start-multi.sh               # 10 Proxys + Router starten
 ├── tools/
-│   ├── install.sh
-│   ├── rotate.py
-│   ├── sinator-cli.py
-│   └── manage_services.sh
-├── patches/
-│   ├── error_classifier_412.patch        # 412 Retry Fix
-│   ├── model_tools.py                    # PR #6318: token estimation
-│   ├── tool_search.py                    # PR #6318: tool_search backend
-│   ├── tools/registry.py                 # PR #6318: deferred loading
-│   ├── agent/                            # PR #6318: agent integration
-│   │   ├── prompt_builder.py
-│   │   ├── system_prompt.py
-│   │   ├── agent_init.py
-│   │   └── conversation_loop.py
-│   └── hermes_cli/models.py              # custom:* provider support
+│   ├── install.sh                 # One-Command Installer
+│   ├── manage_services.sh         # launchd Service Manager
+│   ├── rotate.py                  # E2E Rotation (GMX → Fireworks → API Key)
+│   ├── batch_rotate.py            # Automatische Rotation (alle 90s)
+│   ├── gmx_alias_tool.py          # GMX Alias CLI (read-only)
+│   ├── start_tunnel.sh            # Cloudflare Tunnel Manager
+│   └── test_fireworks_api.py      # API-Test
+├── patches/                       # Hermes CLI Patches
 ├── docs/
 ├── tests/
+├── data/
+│   └── config.json                  # GMX+FW Credentials
 └── README.md
 ```
 
@@ -227,4 +326,4 @@ tail -f /tmp/pool-router-launchd.log
 
 ---
 
-*Stand: 2026-05-29 | 218 Keys | 10 Proxys + Pool-Router | silent swap | tool_search (PR #6318) | custom:* Model Discovery*
+*Stand: 2026-05-29 | 218 Keys | 10 Proxys + Pool-Router | Playwright-native | V14*
