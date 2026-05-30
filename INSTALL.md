@@ -1,124 +1,80 @@
-# INSTALL.md — SINator Fireworks AI Backend
+# INSTALL.md — SIN-Hermes-Provider-Bundle
 
-SINator Backend installieren: Python deps, Playwright, macOS LaunchAgents, Pool-Proxy.
+Fireworks AI Pool-Konfiguration für OpenCode CLI. Nichts wird lokal installiert — nur eine Config-Datei heruntergeladen.
+
+---
+
+## Option 1: Copy & Paste (empfohlen)
+
+```bash
+mkdir -p ~/.config/opencode
+curl -fsSL https://raw.githubusercontent.com/SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle/main/opencode.json -o ~/.config/opencode/opencode.json
+```
+
+API-Key eintragen (`fw_DEIN_KEY` durch echten Key ersetzen):
+
+```bash
+sed -i '' 's/fw_DEIN_KEY/fw_DEIN_ECHTER_KEY/' ~/.config/opencode/opencode.json
+```
+
+Testen:
+
+```bash
+opencode chat --provider fireworks-ai --model deepseek-v4-pro
+```
+
+## Option 2: One-Liner Installer
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle/main/opencode-config-install.sh | bash -s -- --api-key fw_DEIN_KEY
+```
+
+Bestehende Settings bleiben erhalten. Fireworks Provider + 12 Modelle werden hinzugefügt.
+
+## Option 3: Config kaputt? Repair
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle/main/opencode-config-repair.sh | bash
+```
+
+Bewahrt alle bestehenden Settings. Wenn die Datei komplett kaputt ist, erstellt es eine neue mit allen 12 Modellen.
 
 ---
 
 ## Prerequisites
 
-- macOS 14+
-- Python 3.11+ (`python3 --version`)
-- Homebrew (`/opt/homebrew/bin/python3`)
+- macOS oder Linux
+- `bash`, `curl`, `python3` (vorinstalliert auf macOS)
+- Fireworks API Key (`fw_...`)
+- OpenCode CLI (`npm i -g opencode`)
 
-## 1. Repo klonen
+---
 
-```bash
-cd ~/dev
-git clone git@github.com:SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle.git SINator-fireworksai
-cd SINator-fireworksai
-```
-
-## 2. Python Dependencies
+## Verifikation
 
 ```bash
-pip3 install -r agent_toolbox/requirements.txt
-playwright install chromium
+# Config ist gültiges JSON?
+python3 -c "import json; json.load(open('$HOME/.config/opencode/opencode.json'))" && echo "OK"
+
+# 12 Modelle vorhanden?
+python3 -c "import json; print(len(json.load(open('$HOME/.config/opencode/opencode.json'))['provider']['fireworks-ai']['models']), 'Modelle')"
+
+# Pool-Router erreichbar?
+curl -s https://sinatorpool-router.delqhi.com/inference/v1/models | head -5
+
+# OpenCode funktioniert?
+opencode chat --provider fireworks-ai --model deepseek-v4-pro
 ```
 
-## 3. Konfigurieren
-
-```bash
-cp agent_toolbox/.env.example .env
-```
-
-`.env` anpassen:
-
-| Variable | Wert |
-|----------|------|
-| `GMX_EMAIL` | GMX Login-Email |
-| `GMX_PASSWORD` | GMX Passwort |
-| `FIREWORKS_PASSWORD` | Passwort für neue Fireworks-Accounts |
-| `CDP_PORT` | `9222` (wird nicht mehr genutzt — Playwright launch()) |
-| `HEADLESS` | `false` (Browser sichtbar zum Debuggen) |
-
-## 4. Backend starten
-
-```bash
-python3 agent_toolbox/start_toolbox.py
-```
-
-Swagger UI: http://localhost:8000/docs
-
-## 5. Pool-Proxy starten (10 Proxys + Router)
-
-```bash
-bash proxy/start-multi.sh
-```
-
-Startet:
-- Pool-Router auf `:9998` (auto-failover)
-- 10 Proxy-Instanzen auf `:8888`-`:8897`
-
-Verify:
-
-```bash
-curl http://localhost:9998/health
-curl http://localhost:9998/v1/models
-```
-
-## 6. Ersten Key rotieren
-
-```bash
-python3 tools/rotate.py
-```
-
-ODER mit automatischem Pool-Save:
-
-```bash
-python3 tools/rotate.py --save
-```
-
-ODER Batch (z.B. 10 Keys):
-
-```bash
-python3 tools/batch_rotate.py --count 10
-```
-
-## 7. macOS LaunchAgents (Auto-Start)
-
-```bash
-python3 tools/manage_services.sh install   # Alle Services installieren
-python3 tools/manage_services.sh start     # Alle Services starten
-python3 tools/manage_services.sh status    # Status prüfen
-```
-
-| Service | Port | LaunchAgent |
-|---------|------|-------------|
-| Backend | :8000 | `com.sinator.backend` |
-| Pool-Router | :9998 | `com.sinator.pool-router` |
-| Pool-Proxy | :8888-:8897 | `com.sinator.pool-proxy-{port}` |
-| Pages | :8040 | `com.sinator.pages` |
-
-## 8. Zugriff
-
-| Zweck | URL |
-|-------|-----|
-| **OpenAI API** | `https://sinatorpool-router.delqhi.com/inference/v1` |
-| Backend Health | `http://localhost:8000/health` |
-| Pool Stats | `http://localhost:8000/api/v1/pool/stats` |
-| Swagger UI | `http://localhost:8000/docs` |
-| Pool-Router | `http://localhost:9998/health` |
+---
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
-| `playwright install` failed | `playwright install --with-deps chromium` |
-| Port 8000 belegt | `lsof -i :8000` → `kill <PID>` |
-| Proxy 429/412 | Pool-Router swapt automatisch — nächster Proxy |
-| GMX Alias Create scheitert | Retry in rotate.py (3 Versuche) |
-| Alle Keys suspended | `python3 tools/rotate.py --save` für neue Keys |
-
----
-
-*Stand: 2026-05-31 | V15.4*
+| `opencode` startet nicht | `opencode.json` kaputt → Option 3 (Repair) |
+| `401 Unauthorized` | API-Key falsch → `fw_DEIN_KEY` ersetzen |
+| `503 Service Unavailable` | Pool-Router down → später nochmal |
+| JSON Parse Error | Repair-Script (Option 3) |
+| Weniger als 12 Modelle | Alte Config → Option 1 oder 2 neu ausführen |
+| `temperature != 0` | Alte Config → Option 1 neu ausführen |
