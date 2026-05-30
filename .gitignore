@@ -34,3 +34,8 @@
 34:34:*.egg-info/
 35:35:# graphify knowledge graph (auto-generated)
 36:37:.gitnexus
+agent_toolbox/__pycache__/
+agent_toolbox/core/__pycache__/
+debug/
+tools/test_otp_mailcheck.py
+*.pyc

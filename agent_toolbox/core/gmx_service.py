@@ -730,11 +730,10 @@ class GmxService:
             logger.debug(f"CDP URL extraction failed: {e}")
             return None
 
-    async def _ensure_gmx_inbox(self, page: Page) -> bool:
-        """Navigate to GMX inbox ONCE and keep it there.
+    async def _ensure_gmx_inbox(self, page: Page, cdp_port: int = 9222) -> bool:
+        """Zur GMX Inbox navigieren OHNE page.goto (killt Session).
         
-        Returns True if on inbox page. Uses the same page — navigates
-        from www.gmx.net by clicking 'E-Mail' or 'Zum Postfach'.
+        Nutzt CDP Target Discovery + SPA-Klicks. Nie page.goto/reload auf GMX.
         """
         url = page.url
         if "navigator.gmx.net" in url and "mail?sid=" in url:
@@ -742,41 +741,47 @@ class GmxService:
         if "bap.navigator.gmx.net" in url and "mail?sid=" in url:
             return True
         
-        logger.info("Navigating to GMX inbox...")
+        logger.info(f"Current page: {url[:80]} — searching for inbox...")
+        
+        # 1. CDP: finde existierende GMX inbox page
+        ws_url = await get_browser_ws_endpoint(cdp_port)
+        cdp = CDPClient(ws_url)
+        await cdp.connect()
         try:
-            await page.goto("https://www.gmx.net/", wait_until="domcontentloaded")
-            await asyncio.sleep(3)
-            
-            text = await page.evaluate("() => document.body.innerText")
-            
-            # Already logged in — click "Zum Postfach"
-            if "Sie sind eingeloggt" in text or "Zum Postfach" in text:
-                logger.info("Already logged in, clicking Zum Postfach")
-                try:
-                    await page.locator('text=Zum Postfach').first.click()
-                    await asyncio.sleep(5)
-                    if "navigator.gmx.net" in page.url or "bap.navigator.gmx.net" in page.url:
-                        return True
-                except:
-                    pass
-            
-            # Click "E-Mail" button
+            targets = await cdp.get_targets()
+            inbox_pages = [t for t in targets if t.get("type") == "page"
+                          and ("navigator.gmx.net" in t.get("url", "") or "bap.navigator.gmx.net" in t.get("url", ""))
+                          and "mail?sid=" in t.get("url", "")]
+            if inbox_pages:
+                logger.info(f"Found inbox in another tab: {inbox_pages[0]['url'][:60]}...")
+                return True
+        finally:
+            await cdp.disconnect()
+        
+        # 2. SPA-Navigation via Klicks (nur auf GMX-Seiten)
+        if "gmx.net" in url or "gmx.de" in url:
             for _ in range(5):
                 try:
-                    await page.locator('a:has-text("E-Mail")').first.click()
+                    await page.locator('a:has-text("E-Mail")').first.click(timeout=3000)
                     await asyncio.sleep(5)
                     if "navigator.gmx.net" in page.url or "bap.navigator.gmx.net" in page.url:
-                        return True
-                except:
+                        return True if "mail?sid=" in page.url else True
+                except Exception:
                     await asyncio.sleep(2)
             
-            # Direct navigation
-            await page.goto("https://navigator.gmx.net/mail", wait_until="domcontentloaded")
-            await asyncio.sleep(4)
-            return ("navigator.gmx.net" in page.url or "bap.navigator.gmx.net" in page.url)
-        except Exception as e:
-            logger.error(f"Navigate to inbox failed: {e}")
-            return False
+            # Versuche "Postfach" oder "Inbox"
+            for label in ["Postfach", "Inbox", "Mail"]:
+                try:
+                    btn = page.locator(f'text={label}').first
+                    if await btn.is_visible(timeout=2000):
+                        await btn.click()
+                        await asyncio.sleep(4)
+                        return True
+                except Exception:
+                    continue
+        
+        logger.warning("Could not reach GMX inbox via SPA clicks")
+        return False
 
     async def read_otp(self, sender_filter: str = "fireworks", max_retries: int = 25, retry_delay: int = 8, cdp_port: int = 9222) -> Dict[str, Any]:
         start_time = time.time()
@@ -784,7 +789,7 @@ class GmxService:
             page = await self._pw_connect(cdp_port)
             
             # Einmalig zur GMX Inbox navigieren — danach KEIN page.reload/page.goto mehr!
-            if not await self._ensure_gmx_inbox(page):
+            if not await self._ensure_gmx_inbox(page, cdp_port):
                 return {"status": "not_logged_in", "otp_url": None, "error": "Konnte nicht zur GMX Inbox navigieren"}
             
             logger.info(f"Inbox URL: {page.url[:80]}")
@@ -891,13 +896,33 @@ class GmxService:
             return {"status": "error", "otp_url": None, "error": str(e)}
 
     async def check_session(self, cdp_port: int = 9222) -> Dict[str, Any]:
+        """Check GMX session WITHOUT page.goto (killt Session).
+        Nutzt CDP Targets um existierende GMX-Pages zu finden + DOM zu checken.
+        """
         try:
-            page = await self._pw_connect(cdp_port)
-            await page.goto("https://www.gmx.net/", wait_until="domcontentloaded")
-            await asyncio.sleep(3)
-            text = await page.evaluate("() => document.body.innerText")
-            logged_in = "Sie sind eingeloggt" in text or "Zum Postfach" in text
-            return {"status": "logged_in" if logged_in else "not_logged_in", "current_url": page.url}
+            ws_url = await get_browser_ws_endpoint(cdp_port)
+            cdp = CDPClient(ws_url)
+            await cdp.connect()
+            try:
+                targets = await cdp.get_targets()
+                gmx_pages = [t for t in targets if t.get("type") == "page"
+                             and ("gmx.net" in t.get("url", "") or "gmx.de" in t.get("url", ""))]
+                if not gmx_pages:
+                    return {"status": "not_logged_in", "current_url": "", "note": "no gmx page found"}
+
+                for t in gmx_pages:
+                    sid = await cdp.attach_to_target(t["targetId"])
+                    try:
+                        await cdp.send_to_session(sid, "Runtime.enable")
+                    except Exception:
+                        pass
+                    result = await cdp.evaluate(sid, "document.body.innerText")
+                    text = result.get("result", {}).get("value", "")
+                    if "Sie sind eingeloggt" in text or "Zum Postfach" in text:
+                        return {"status": "logged_in", "current_url": t["url"]}
+                return {"status": "not_logged_in", "current_url": gmx_pages[0]["url"]}
+            finally:
+                await cdp.disconnect()
         except Exception as e:
             return {"status": "error", "error": str(e)}
 
@@ -909,44 +934,7 @@ class GmxService:
         except Exception as e:
             return {"status": "error", "error": str(e)}
 
-    # ── Legacy Cookie Injection ──────────────────────────────────────────
-
-    async def _inject_cookies(self, client: CDPClient, session_id: str) -> int:
-        cookies_file = Path("./data/gmx-cookies.json")
-        if not cookies_file.exists():
-            return 0
-        try:
-            with open(cookies_file) as f:
-                cookies = json.load(f)
-        except Exception:
-            return 0
-        injected = 0
-        for cookie in cookies:
-            try:
-                params = {
-                    "name": cookie.get("name"),
-                    "value": cookie.get("value"),
-                    "domain": cookie.get("domain"),
-                    "path": cookie.get("path", "/"),
-                    "secure": cookie.get("secure", False),
-                    "httpOnly": cookie.get("httpOnly", False),
-                }
-                same_site = cookie.get("sameSite")
-                if same_site and same_site != "None":
-                    params["sameSite"] = same_site
-                expires = cookie.get("expires", -1)
-                if expires and expires != -1:
-                    try:
-                        params["expires"] = float(expires)
-                    except (ValueError, TypeError):
-                        pass
-                result = await client.send_to_session(session_id, "Network.setCookie", params)
-                if result and not result.get("error"):
-                    injected += 1
-            except Exception:
-                pass
-        logger.info(f"{injected}/{len(cookies)} Cookies injiziert")
-        return injected
+    # (Legacy Cookie Injection removed — CDP Session Recovery via attach_to_iframe)
 
 
 _gmx_service: Optional[GmxService] = None
