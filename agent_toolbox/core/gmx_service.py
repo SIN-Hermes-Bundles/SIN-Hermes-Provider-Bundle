@@ -380,11 +380,33 @@ class GmxService:
         # Step 1: Navigate to jump URL → redirects to 3c.gmx.net (top frame!)
         jump_url = f"https://navigator.gmx.net/navigator/jump/to/mail_settings?sid={sid}"
         logger.info(f"STEP 1: Navigating to jump URL")
-        await page.goto(jump_url, wait_until="domcontentloaded")
+        try:
+            await page.goto(jump_url, wait_until="domcontentloaded", timeout=15000)
+        except Exception as e:
+            logger.warning(f"Jump navigation failed: {e}")
         await asyncio.sleep(6)
         
         url = page.url
         logger.info(f"After jump: {url[:100]}")
+        
+        # If session expired, re-login and retry
+        if "status=inactive" in url or "logoutlounge" in url:
+            logger.info("Session expired — re-logging in")
+            if not await self._login(page):
+                logger.error("Login failed after session expiry")
+                return False
+            sid_match = re.search(r'[?&]sid=([a-f0-9]{50,})', page.url)
+            if not sid_match:
+                logger.error("No SID after re-login")
+                return False
+            sid = sid_match.group(1)
+            logger.info(f"Re-login got SID: {sid[:20]}...")
+            jump_url = f"https://navigator.gmx.net/navigator/jump/to/mail_settings?sid={sid}"
+            logger.info(f"STEP 1 (retry): Navigating to jump URL with fresh SID")
+            await page.goto(jump_url, wait_until="domcontentloaded", timeout=15000)
+            await asyncio.sleep(6)
+            url = page.url
+            logger.info(f"After retry jump: {url[:100]}")
         
         if "allEmailAddresses" in url:
             logger.info("Redirected directly to allEmailAddresses (top frame)")
