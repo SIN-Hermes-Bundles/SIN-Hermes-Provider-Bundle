@@ -1,4 +1,4 @@
-# AGENTS.md — SINator Fireworks AI Rotator V15 (2026-05-30)
+# AGENTS.md — SINator Fireworks AI Rotator V15.2 (2026-05-30)
 
 ## ✅ COMPLETE E2E FLOW — VERIFIED 2026-05-30
 
@@ -13,6 +13,19 @@ python tools/rotate.py
 **Pool-Router:** `sinatorpool-router.delqhi.com` (:9998, single endpoint, auto-failover)
 **Pool Proxies:** 10 Instanzen (:8888-:8897) hinter Pool-Router
 **Services:** com.sinator.backend (:8000), com.sinator.pool-router (:9998), 10× pool-proxy (:8888-:8897), Pages (:8040)
+
+---
+
+## 🔧 V15.2 CHANGES (2026-05-30) — Session Expiry Auto-Recovery + Dashboard Terminal Launch
+
+### Session Expiry Auto-Recovery (gmx_service.py:380-410)
+**Problem:** GMX SID läuft ab → `navigator.gmx.net/.../mail_settings?sid=...` redirectet zu `www.gmx.net/?status=inactive` oder `logoutlounge?status=session`
+**Fix:** `_navigate_to_all_email_addresses()` erkennt `status=inactive` / `logoutlounge` im Jump-Result → triggert `_login()` via `keep_me_signed_in` Cookie (gültig bis 2026-11) → holt frischen SID → retry Jump. Kein CAPTCHA nötig.
+
+### Dashboard: Generieren-Button → Terminal.app
+**Alt:** `POST /api/v1/rotation/full` (Subprocess → Playwright CDP Timeout, funktionierte nie zuverlässig)
+**Neu:** Tauri-Command `open_terminal_rotate(password, count)` in Rust → öffnet Terminal.app via osascript → führt `python3 tools/rotate.py` direkt aus. Key landet via `--save` im Pool.
+**Escaping:** Single-Quotes in Shell, `"` → `\"` in AppleScript. KEIN `\` escapen (Doppel-Escaping-Bug).
 
 ---
 
@@ -327,7 +340,7 @@ Build: `cd ~/dev/SINator-dashboard && ./build.sh` → /Applications/SINator.app
 
 ---
 
-*Last Updated: 2026-05-30 (V15.1 — Session Reuse + Use-Cases Fix + Radix UI Checkbox)*
+*Last Updated: 2026-05-30 (V15.2 — Session Expiry Auto-Recovery + Dashboard Terminal Launch)*
 *All learnings propagated to AGENTS.md, knowledge-base.md, and banned.md.*
 
 <!-- gitnexus:start -->
