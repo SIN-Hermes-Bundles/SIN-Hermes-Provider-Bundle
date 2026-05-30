@@ -777,11 +777,7 @@ class GmxService:
             return None
 
     async def _ensure_gmx_inbox(self, page: Page, cdp_port: int = 9222) -> bool:
-        """Zur GMX Inbox navigieren — via www.gmx.net + Consent-Handling + Klick.
-        
-        www.gmx.net ist sicher zu navigieren (kein SPA). SPA startet erst
-        nach Klick auf 'Zum Postfach' → navigator.gmx.net.
-        """
+        """Zur GMX Inbox navigieren — via www.gmx.net + Consent + Login + Klick."""
         url = page.url
         if "navigator.gmx.net" in url and "mail?sid=" in url:
             return True
@@ -790,21 +786,20 @@ class GmxService:
         
         logger.info(f"Current page: {url[:80]}")
         
-        # www.gmx.net ist safe für goto — kein SPA State
         try:
             await page.goto("https://www.gmx.net/", wait_until="domcontentloaded", timeout=15000)
         except Exception:
             pass
         await asyncio.sleep(4)
         
-        # Consent-Management erkennen und akzeptieren
-        for _ in range(5):
+        # Consent + Login loop
+        for _ in range(8):
             current = page.url
             text = await page.evaluate("() => document.body.innerText")
             
+            # Consent handling (cross-frame search)
             if "consent-management" in current or "consent" in current.lower():
                 logger.info("Consent page detected — trying to accept...")
-                # Search all frames for consent button (GMX uses cross-origin iframe)
                 for frame in page.frames:
                     try:
                         btn = frame.locator('#save-all-pur').first
@@ -815,9 +810,20 @@ class GmxService:
                     except Exception:
                         continue
             
-            if "navigator.gmx.net" in current and "mail?sid=" in current:
+            # Check inbox reached
+            if "navigator.gmx.net" in page.url and "mail?sid=" in page.url:
                 return True
             
+            # Login if not logged in
+            if "Sie sind eingeloggt" not in text and "Zum Postfach" not in text:
+                logger.info("Not logged in — performing full login")
+                if await self._login(page):
+                    await asyncio.sleep(2)
+                    if "navigator.gmx.net" in page.url and "mail?sid=" in page.url:
+                        return True
+                    text = await page.evaluate("() => document.body.innerText")
+            
+            # Click "Zum Postfach"
             if "Sie sind eingeloggt" in text or "Zum Postfach" in text:
                 logger.info("Logged in — clicking Zum Postfach")
                 try:
@@ -825,7 +831,7 @@ class GmxService:
                     if await btn.is_visible(timeout=3000):
                         await btn.click()
                         await asyncio.sleep(5)
-                        if "navigator.gmx.net" in page.url:
+                        if "navigator.gmx.net" in page.url and "mail?sid=" in page.url:
                             return True
                 except Exception:
                     pass
@@ -834,7 +840,7 @@ class GmxService:
             try:
                 await page.locator('a:has-text("E-Mail")').first.click(timeout=3000)
                 await asyncio.sleep(5)
-                if "navigator.gmx.net" in page.url:
+                if "navigator.gmx.net" in page.url and "mail?sid=" in page.url:
                     return True
             except Exception:
                 pass
