@@ -7,7 +7,7 @@
 
 ## 🛑 REGEL 0: VERIFIED FLOW — COMPLETE (2026-05-30)
 
-**Pool:** 223 Keys (95 verfügbar, 10 used, 118 suspended)
+**Pool:** 225 Keys (95 verfügbar, 10 used, 120 suspended)
 **Cycle Time:** ~140s average
 **E2E Single Command:** `python tools/rotate.py`
 **Config:** GMX/Fireworks Credentials aus `data/config.json` (nicht mehr hardcodiert!)

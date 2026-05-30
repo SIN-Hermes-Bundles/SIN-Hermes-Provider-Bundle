@@ -1,7 +1,7 @@
 # SINator Knowledge Database — Lessons Learned
 
 > "Once Verified = Read-Only. New code = New file. Learnings → Here."
-> Last verified: 2026-05-30 — V15.1 COMPLETE: 223 Keys (95 available, 10 used, 118 suspended), ~140s avg
+> Last verified: 2026-05-30 — V15.1 COMPLETE: 225 Keys (95 available, 10 used, 120 suspended), ~140s avg
 
 ## 🟢 WHAT WORKS (V15.1 Playwright-native + Session Reuse)
 
@@ -149,7 +149,7 @@ After 4h batch rotation → 37+ tabs → Chrome overloaded → Playwright connec
 ### Performance: V9 → V15.1
 | Metric | V9 | V11 | V12 | V14 | V15.1 |
 |--------|:--:|:---:|:---:|:---:|:-----:|
-| Pool Size | 45 | 112 | 146 | 218 | 223 |
+| Pool Size | 45 | 112 | 146 | 218 | 225 |
 | Cycle Time | ~173s | ~210s | ~180s | ~130s | ~140s |
 | GMX Rotation | CDP | Playwright | Playwright | Playwright-native | Playwright-native |
 | Fireworks | CDP | Playwright+CUA | Playwright+CUA | Playwright+CUA | Playwright+CUA |
@@ -164,7 +164,7 @@ After 4h batch rotation → 37+ tabs → Chrome overloaded → Playwright connec
 
 | Commit | Date | Status |
 |--------|------|--------|
-| `HEAD` | May 30 | ✅ **LATEST**: V15.1 — Session Reuse + Use-Cases Fix, 223 Keys, ~140s |
+| `HEAD` | May 30 | ✅ **LATEST**: V15.1 — Session Reuse + Use-Cases Fix, 225 Keys, ~140s |
 | V14 | May 29 | ✅ V14: Playwright-native, 10 Proxies, 218 Keys, ~130s |
 | V12 | May 26 | ✅ V12: Shadow DOM Nav, Atomic Swap, 146 Keys, Config Manager |
 | V11 | May 25 | ✅ V11: Config Manager, Chat, Keychain, 112 Keys |

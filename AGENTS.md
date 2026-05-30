@@ -8,8 +8,8 @@ python tools/rotate.py
 # → OTP (~11s, Playwright locator) → Verify → Login → Onboarding → API Key → Pool
 ```
 
-**Pool:** 218 Keys (avail/used/suspended)
-**Cycle Time:** ~27s GMX + ~60s Fireworks signup + ~30s API Key = ~117s total
+**Pool:** 225 Keys (avail/used/suspended)
+**Cycle Time:** ~27s GMX + ~60s Fireworks signup + ~30s API Key = ~140s total
 **Pool-Router:** `sinatorpool-router.delqhi.com` (:9998, single endpoint, auto-failover)
 **Pool Proxies:** 10 Instanzen (:8888-:8897) hinter Pool-Router
 **Services:** com.sinator.backend (:8000), com.sinator.pool-router (:9998), 10× pool-proxy (:8888-:8897), Pages (:8040)
@@ -85,7 +85,7 @@ python tools/rotate.py
 **Funktionen:**
 - `signup_fireworks(email, password)` — Signup + OTP + Verify
 - `login_fireworks(email, password)` — Login + Onboarding (CUA + Playwright Fallback)
-- `create_api_key(key_name)` — API Key erstellen via Playwright
+- `create_api_key(key_name, page=None, playwright=None, browser=None)` — API Key erstellen via Playwright (Session Reuse)
 - `verify_account(verify_url)` — Verify URL öffnen
 - `_fireworks_playwright_onboarding(page)` — Playwright-Onboarding-Fallback
 - `_generate_and_poll_key(pg, key_name)` — Generate-Button + Key-Polling
@@ -101,12 +101,12 @@ python tools/rotate.py
 1. GmxService.login() → Playwright
 2. GmxService.rotate_alias() → Playwright
 3. signup_fireworks(alias, password) → Playwright
-4. login_fireworks(alias, password) → Playwright + CUA
-5. create_api_key(key_name) → Playwright
+4. login_result = login_fireworks(alias, password) → Playwright + CUA (gibt page+playwright+browser zurück)
+5. create_api_key(key_name, page=login_result['page'], playwright=login_result['playwright'], browser=login_result['browser']) → Playwright (Session Reuse)
 6. PoolManager.add_key() → JSON
 ```
 
-**Kein CDP mehr im rotate.py!** Alles über Playwright-API-Calls.
+**Kein CDP mehr im rotate.py!** Alles über Playwright-API-Calls. Session Reuse zwischen Login und API Key.
 
 ### gmx_service.py — Playwright-native (910 Zeilen)
 **Vorher:** Mix aus CDP + CUA + Playwright
@@ -283,7 +283,7 @@ if await items.count() > 0:
 ```
 agent_toolbox/
 ├── core/
-│   ├── fireworks_service.py    V6: Playwright+CUA Hybrid (655 lines)
+│   ├── fireworks_service.py    V6: Playwright+CUA Hybrid + Session Reuse (655 lines)
 │   ├── gmx_service.py          Playwright-native (910 lines)
 │   ├── pool_manager.py         Pool-Stats + Key-Management (518 lines)
 │   ├── config_manager.py       GMX+FW Credentials (46 lines)
@@ -300,7 +300,7 @@ proxy/
 └── start-multi.sh              Startet Pool-Router + 10 Proxys
 
 tools/
-├── rotate.py                   V7: Playwright-native (108 lines)
+├── rotate.py                   V7: Playwright-native + Session Reuse (108 lines)
 ├── gmx_alias_tool.py          GMX Alias CLI (read-only verified)
 └── test_fireworks_api.py      API-Test
 

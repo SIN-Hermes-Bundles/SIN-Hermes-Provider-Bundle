@@ -33,7 +33,7 @@ OpenAI-compatible proxy with automatic key rotation on rate-limits.
 
 ### Backend: 10 Proxys (lokal, 8888-8897)
 
-Jeder Proxy ist eine eigene aiohttp-Instanz mit charset-Fix, eigenem API-Key aus dem Pool (223 Keys), und launchd-Autostart.
+Jeder Proxy ist eine eigene aiohttp-Instanz mit charset-Fix, eigenem API-Key aus dem Pool (225 Keys), und launchd-Autostart.
 
 ## Installation
 
@@ -230,4 +230,4 @@ python tools/rotate.py
 
 ---
 
-*Stand: 2026-05-30 | 223 Keys | 10 Proxys + Pool-Router | Playwright-native + Session Reuse | V15.1*
+*Stand: 2026-05-30 | 225 Keys | 10 Proxys + Pool-Router | Playwright-native + Session Reuse | V15.1*
