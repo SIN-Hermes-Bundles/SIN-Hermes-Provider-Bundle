@@ -33,10 +33,8 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "agent_toolbox" / "core"))  # cua_helper, gmx_service, etc.
 
-from agent_toolbox.api.routes.browser import router as browser_router
 from agent_toolbox.api.routes.gmx import router as gmx_router
 from agent_toolbox.api.routes.fireworks import router as fireworks_router
-from agent_toolbox.api.routes.cookies import router as cookies_router
 from agent_toolbox.api.routes.pool import router as pool_router, lease_router
 from agent_toolbox.api.routes.rotation import router as rotation_router
 from agent_toolbox.api.routes.config import router as config_router
@@ -74,14 +72,6 @@ async def lifespan(app: FastAPI):
 
     yield
     logger.info("🛑 SINator Agent Toolbox fährt herunter...")
-    try:
-        from agent_toolbox.core.browser_manager import get_browser_manager
-        browser_mgr = get_browser_manager()
-        if browser_mgr.is_running:
-            await browser_mgr.stop()
-            logger.info("✅ Browser aufgeräumt")
-    except Exception as e:
-        logger.warning(f"⚠️ Browser-Cleanup Fehler: {e}")
 
 # FastAPI App erstellen
 app = FastAPI(
@@ -130,7 +120,7 @@ if not _SINATOR_TOKEN:
 async def auth_middleware(request, call_next):
     # Public paths — no auth required
     public_paths = ("/health", "/docs", "/redoc", "/openapi.json", "/")
-    public_prefixes = ("/api/v1/browser/", "/api/v1/pool/", "/api/v1/pool-lease", "/api/v1/rotation/", "/api/v1/config")
+    public_prefixes = ("/api/v1/pool/", "/api/v1/pool-lease", "/api/v1/rotation/", "/api/v1/config")
     if request.url.path in public_paths or any(request.url.path.startswith(p) for p in public_prefixes):
         return await call_next(request)
 
@@ -149,10 +139,8 @@ async def auth_middleware(request, call_next):
     return await call_next(request)
 
 # Routen registrieren
-app.include_router(browser_router, prefix="/api/v1")
 app.include_router(gmx_router, prefix="/api/v1")
 app.include_router(fireworks_router, prefix="/api/v1")
-app.include_router(cookies_router, prefix="/api/v1")
 app.include_router(pool_router, prefix="/api/v1")
 app.include_router(lease_router, prefix="/api/v1")
 app.include_router(rotation_router, prefix="/api/v1")
@@ -173,37 +161,18 @@ async def root():
 @app.get("/health", tags=["Health"])
 async def health():
     """Detaillierter Health-Check (Dashboard-kompatibel)."""
-    from agent_toolbox.core.browser_manager import get_browser_manager
-
-    browser_mgr = get_browser_manager()
     return {
         "server": "ok",
-        "chrome": browser_mgr.is_running,
-        "cua": browser_mgr.is_running,
-        "version": "8.0.0",
+        "version": "15.4.0",
     }
 
 
 if __name__ == "__main__":
     import uvicorn
-    import urllib.request
 
     port = int(os.getenv("TOOLBOX_PORT", "8000"))
     host = os.getenv("TOOLBOX_HOST", "0.0.0.0")
     reload = os.getenv("TOOLBOX_RELOAD", "false").lower() == "true"
-
-    cdp_wait = int(os.getenv("SINATOR_CDP_WAIT", "8"))
-    for i in range(cdp_wait):
-        try:
-            urllib.request.urlopen(f"http://127.0.0.1:9222/json/version", timeout=2)
-            logger.info(f"✅ Chrome CDP ready (waited {i}s)")
-            break
-        except Exception:
-            if i == 0:
-                logger.info(f"⏳ Waiting for Chrome CDP on port 9222 (max {cdp_wait}s)...")
-            import time; time.sleep(1)
-    else:
-        logger.warning("⚠️ Chrome CDP not ready — backend will start anyway")
 
     logger.info(f"🌐 Starte Uvicorn auf {host}:{port} (reload={reload})")
 

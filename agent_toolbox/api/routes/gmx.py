@@ -32,7 +32,6 @@ from typing import Optional, Dict, Any
 import httpx
 from fastapi import APIRouter, HTTPException
 
-from agent_toolbox.core.browser_manager import get_browser_manager
 from agent_toolbox.core.gmx_service import get_gmx_service
 from agent_toolbox.api.schemas import (
     GmxSessionCheckResponse,
@@ -74,11 +73,11 @@ async def _gmx_create_via_api(alias_name: Optional[str] = None) -> Optional[Dict
 
 
 async def _gmx_create_fallback(alias_name: Optional[str] = None) -> Dict[str, Any]:
-    """Fallback: GMX Alias Create direkt via GmxService."""
+    """Fallback: GMX Alias Create direkt via GmxService (Playwright)."""
     from agent_toolbox.core.gmx_service import GmxService
     svc = GmxService()
-    await svc.ensure_gmx_session(email="delqhi@gmx.de", password="ZOE.jerry2024", cdp_port=9222)
-    result = await svc.create_alias(alias_name=alias_name, cdp_port=9222)
+    await svc.ensure_gmx_session(email="delqhi@gmx.de", password="ZOE.jerry2024")
+    result = await svc.create_alias(alias_name=alias_name)
     if result.get("status") == "success":
         return result
     raise RuntimeError(f"GMX create fallback failed: {result.get('error', 'unknown')}")
@@ -113,38 +112,17 @@ async def _gmx_delete_via_api() -> Optional[Dict[str, Any]]:
 
 
 async def _gmx_delete_fallback() -> Dict[str, Any]:
-    """Fallback: GMX Alias Delete direkt via GmxService."""
+    """Fallback: GMX Alias Delete direkt via GmxService (Playwright)."""
     from agent_toolbox.core.gmx_service import GmxService
     svc = GmxService()
-    await svc.ensure_gmx_session(email="delqhi@gmx.de", password="ZOE.jerry2024", cdp_port=9222)
-    return await svc.delete_existing_alias(cdp_port=9222)
-
-
-def _require_browser():
-    """
-    Prüft ob der Browser läuft und gibt den CDP-Port zurück.
-    
-    Raises:
-        HTTPException: Wenn Browser nicht gestartet
-    """
-    browser_mgr = get_browser_manager()
-    if not browser_mgr.is_running:
-        raise HTTPException(
-            status_code=400,
-            detail="Browser nicht gestartet. POST /browser/start zuerst aufrufen."
-        )
-    return browser_mgr.cdp_port
+    await svc.ensure_gmx_session(email="delqhi@gmx.de", password="ZOE.jerry2024")
+    return await svc.delete_existing_alias()
 
 
 @router.post("/session/check", response_model=GmxSessionCheckResponse)
 async def check_session():
     """
     Prüft ob eine GMX-Session aktiv ist.
-    
-    FLOW:
-    1. Lädt GMX Homepage mit kopiertem Chrome-Profil
-    2. Prüft "Sie sind eingeloggt" / "Zum Postfach"
-    3. Klickt "Zum Postfach" und prüft ob navigator.gmx.net/mail erreichbar
     
     Returns:
         status: "logged_in" | "not_logged_in" | "error"
@@ -153,10 +131,9 @@ async def check_session():
         sid: GMX session ID (wenn extrahiert)
     """
     t0 = time.time()
-    cdp_port = _require_browser()
     
     try:
-        result = await get_gmx_service().check_session(cdp_port=cdp_port)
+        result = await get_gmx_service().check_session()
         return GmxSessionCheckResponse(
             status=result["status"],
             current_url=result.get("current_url", ""),
@@ -192,13 +169,11 @@ async def ensure_gmx_session(
         sid: GMX session ID (wenn verfügbar)
     """
     t0 = time.time()
-    cdp_port = _require_browser()
     
     try:
         result = await get_gmx_service().ensure_gmx_session(
             email=email,
             password=password,
-            cdp_port=cdp_port,
         )
         return GmxSessionCheckResponse(
             status=result["status"],
@@ -228,10 +203,9 @@ async def open_email_addresses():
         current_url: URL der Alias-Verwaltungsseite
     """
     t0 = time.time()
-    cdp_port = _require_browser()
     
     try:
-        result = await get_gmx_service().open_email_addresses_page(cdp_port=cdp_port)
+        result = await get_gmx_service().open_email_addresses_page()
         return GmxEmailAddressesResponse(
             status=result["status"],
             current_url=result.get("current_url"),
@@ -321,8 +295,8 @@ async def rotate_alias(request: GmxAliasRotateRequest = None):
         logger.info("gmx-alias-tool API offline, using direct fallback")
         from agent_toolbox.core.gmx_service import GmxService
         svc = GmxService()
-        await svc.ensure_gmx_session(email="delqhi@gmx.de", password="ZOE.jerry2024", cdp_port=9222)
-        fb_result = await svc.rotate_alias(new_alias_name=new_alias_name, cdp_port=9222)
+        await svc.ensure_gmx_session(email="delqhi@gmx.de", password="ZOE.jerry2024")
+        fb_result = await svc.rotate_alias(new_alias_name=new_alias_name)
         return GmxAliasRotateResponse(
             status=fb_result.get("status", "error"),
             deleted_alias=fb_result.get("deleted_alias"),
@@ -398,10 +372,9 @@ async def open_inbox():
         current_url: URL der Inbox
     """
     t0 = time.time()
-    cdp_port = _require_browser()
     
     try:
-        result = await get_gmx_service().open_inbox(cdp_port=cdp_port)
+        result = await get_gmx_service().open_inbox()
         return GmxInboxOpenResponse(
             status=result["status"],
             current_url=result.get("current_url"),
@@ -429,13 +402,11 @@ async def read_otp(sender_filter: str = "fireworks", max_retries: int = 12):
         otp_url: Die extrahierte Bestätigungs-URL
     """
     t0 = time.time()
-    cdp_port = _require_browser()
     
     try:
         result = await get_gmx_service().read_otp(
             sender_filter=sender_filter,
             max_retries=max_retries,
-            cdp_port=cdp_port,
         )
         return GmxOtpResponse(
             status=result["status"],

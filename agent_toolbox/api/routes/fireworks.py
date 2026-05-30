@@ -1,11 +1,10 @@
 """
-SINATOR — Fireworks Routes V15.1 (Playwright+CUA + Session Reuse, 2026-05-30)
+SINATOR — Fireworks Routes V15.4 (Playwright, 2026-05-31)
 """
 import time
 import logging
 from fastapi import APIRouter, HTTPException
 
-from agent_toolbox.core.browser_manager import get_browser_manager
 from agent_toolbox.core.fireworks_service import login_fireworks, create_api_key
 from agent_toolbox.api.schemas import (
     FireworksRegisterRequest, FireworksRegisterResponse,
@@ -16,18 +15,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/fireworks", tags=["Fireworks AI Services"])
 
 
-def _require_browser():
-    browser_mgr = get_browser_manager()
-    if not browser_mgr.is_running:
-        raise HTTPException(status_code=400, detail="Browser nicht gestartet.")
-    return browser_mgr.cdp_port
-
-
 @router.post("/login", response_model=FireworksRegisterResponse)
 async def login(request: FireworksRegisterRequest):
     """Login to Fireworks AI account (Playwright + CUA onboarding)."""
     t0 = time.time()
-    _require_browser()
     result = await login_fireworks(request.email, request.password)
     return FireworksRegisterResponse(
         status=result["status"],
@@ -45,7 +36,6 @@ async def apikey(request: FireworksApiKeyRequest):
     If only key_name provided: creates new page (may redirect to /login).
     """
     t0 = time.time()
-    _require_browser()
 
     page = None
     playwright = None
