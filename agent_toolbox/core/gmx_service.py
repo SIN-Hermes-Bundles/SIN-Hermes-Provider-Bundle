@@ -749,12 +749,20 @@ class GmxService:
                             created_alias = alias_email
                             steps.append("created")
                             break
-                        # Log page text to diagnose failure
+                        # Diagnose: check frame content for error / input state
                         try:
-                            body = await page.evaluate("() => document.body?.innerText || '(no body)'")
-                            logger.warning(f"Create failed for {alias_email}. Page has alias section: {'allEmailAddresses' in page.url}. Body snippet: {body[:200]}")
-                        except Exception:
-                            logger.warning(f"Create failed for {alias_email} — could not read page text")
+                            frame = await self._get_all_email_frame(page)
+                            if frame:
+                                frame_text = await frame.evaluate("() => document.body?.innerText || '(no body)'")
+                                input_val = ""
+                                inp = frame.locator('input[type="text"]').first
+                                if await inp.count() > 0:
+                                    input_val = await inp.input_value()
+                                logger.warning(f"Create failed for {alias_email}. Input still filled: '{input_val[:30]}'. Frame body: {frame_text[:300]}")
+                            else:
+                                logger.warning(f"Create failed for {alias_email} — no allEmailAddresses frame found")
+                        except Exception as e:
+                            logger.warning(f"Create failed for {alias_email} — could not diagnose: {e}")
                 await asyncio.sleep(1)
 
             if created_alias:

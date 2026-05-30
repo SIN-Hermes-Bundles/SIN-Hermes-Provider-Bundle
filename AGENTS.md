@@ -8,7 +8,7 @@ python tools/rotate.py
 # → Login + Onboarding (~25s) → API Key (~30s) → Pool
 ```
 
-**Pool:** 229 Keys (0 used)
+**Pool:** 234 Keys (0 used)
 **Cycle Time:** ~169s total (ein Browser, keine reopen)
 **Pool-Router:** `sinatorpool-router.delqhi.com` (:9998, single endpoint, auto-failover)
 **Pool Proxies:** 10 Instanzen (:8888-:8897) hinter Pool-Router
