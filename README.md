@@ -12,6 +12,15 @@ Fireworks AI Pool-Konfiguration für OpenCode CLI und Hermes.
 
 ## Installieren
 
+### Copy & Paste (schnellste Option)
+
+```bash
+mkdir -p ~/.config/opencode
+curl -fsSL https://raw.githubusercontent.com/SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle/main/opencode.json -o ~/.config/opencode/opencode.json
+```
+
+Danach `apiKey` in der Datei ersetzen (`fw_DEIN_KEY` → dein echter Key).
+
 ### OpenCode CLI (One-Liner)
 
 ```bash
