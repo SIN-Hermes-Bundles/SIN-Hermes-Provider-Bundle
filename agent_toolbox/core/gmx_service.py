@@ -43,6 +43,9 @@ GMX_HOME_URL = "https://www.gmx.net/"
 
 class GmxService:
     def __init__(self):
+        self._pw_playwright = None
+        self._pw_browser = None
+        self._pw_context = None
         self.adjectives = [
             "elron", "dark", "swift", "iron", "silver", "golden", "crystal", "shadow",
             "storm", "frost", "blaze", "thunder", "cosmic", "neon", "cyber", "quantum",
@@ -65,72 +68,32 @@ class GmxService:
     # ── Playwright Connection ────────────────────────────────────────────
 
     async def _pw_connect(self, cdp_port: int = 9222) -> Page:
-        """Connect to existing Chrome via CDP and return a Playwright Page.
-        Prefers allEmailAddresses page if available. Ignores iac/restart pages."""
-        logger.info(f"[_pw_connect] Connecting to Chrome on CDP port {cdp_port}")
-        p = await async_playwright().start()
-        browser = await p.chromium.connect_over_cdp(f"http://localhost:{cdp_port}")
-        
-        # First, look for allEmailAddresses page
-        page = None
-        for ctx in browser.contexts:
-            for pg in ctx.pages:
-                url = pg.url or ""
-                if "allEmailAddresses" in url and "settings" in url and "iac/restart" not in url:
-                    page = pg
-                    logger.info(f"[_pw_connect] Found allEmailAddresses page: {url[:60]}...")
-                    return page
-        
-        # Prefer navigator inbox page (has active SID session)
-        for ctx in browser.contexts:
-            for pg in ctx.pages:
-                url = pg.url or ""
-                if "navigator.gmx.net/mail?sid=" in url and "iac/restart" not in url:
-                    page = pg
-                    logger.info(f"[_pw_connect] Found navigator inbox: {url[:60]}...")
-                    return page
-        
-        # Otherwise, prefer logged-in GMX pages (Sie sind eingeloggt)
-        for ctx in browser.contexts:
-            for pg in ctx.pages:
-                url = pg.url or ""
-                if "gmx.net" in url and "iac/restart" not in url:
-                    try:
-                        text = await pg.evaluate("() => document.body.innerText.substring(0, 500)")
-                        if "Sie sind eingeloggt" in text or "Zum Postfach" in text:
-                            page = pg
-                            logger.info(f"[_pw_connect] Found logged-in GMX page: {url[:60]}...")
-                            return page
-                    except Exception:
-                        continue
-        
-        # Then any valid GMX page
-        for ctx in browser.contexts:
-            for pg in ctx.pages:
-                url = pg.url or ""
-                if "gmx.net" in url and "iac/restart" not in url and "session-expired" not in url and "logoutlounge" not in url and "registrieren" not in url.lower():
-                    page = pg
-                    logger.info(f"[_pw_connect] Found GMX page: {url[:60]}...")
-                    return page
-        
-        # Fallback to first page that is not iac/restart
-        for ctx in browser.contexts:
-            for pg in ctx.pages:
-                url = pg.url or ""
-                if "iac/restart" not in url and "session-expired" not in url and "logoutlounge" not in url:
-                    page = pg
-                    logger.info(f"[_pw_connect] Using fallback page: {url[:60]}...")
-                    return page
-        
-        # Last resort: create new page
-        if browser.contexts and browser.contexts[0].pages:
-            page = browser.contexts[0].pages[0]
-            logger.info(f"[_pw_connect] Using first page: {page.url[:60]}...")
-        else:
-            page = await browser.contexts[0].new_page() if browser.contexts else await browser.new_page()
-            logger.info(f"[_pw_connect] Created new page")
-        
+        """Launch fresh Playwright Chromium and return a Page.
+        No cookie injection — fresh browser, handles consent in _login()."""
+        logger.info(f"[_pw_connect] Launching Playwright Chromium (launch, port={cdp_port})")
+        self._pw_playwright = await async_playwright().start()
+        self._pw_browser = await self._pw_playwright.chromium.launch(
+            headless=False, args=["--no-sandbox"]
+        )
+        self._pw_context = await self._pw_browser.new_context()
+        page = await self._pw_context.new_page()
         return page
+
+    async def _pw_close(self):
+        """Close Playwright browser resources."""
+        try:
+            if self._pw_browser:
+                await self._pw_browser.close()
+        except Exception:
+            pass
+        try:
+            if self._pw_playwright:
+                await self._pw_playwright.stop()
+        except Exception:
+            pass
+        self._pw_browser = None
+        self._pw_context = None
+        self._pw_playwright = None
 
     async def _login(self, page: Page, email: str = "delqhi@gmx.de", password: str = "ZOE.jerry2024") -> bool:
         """Login to GMX via Playwright. Two-step flow: Email → Weiter → Password → Login."""
@@ -145,16 +108,25 @@ class GmxService:
             if "consent" in url:
                 logger.info("Cookie consent page detected, accepting")
                 try:
-                    # Click "Alle akzeptieren" or "Zustimmen" or similar
-                    for selector in ['button:has-text("Alle akzeptieren")', 'button:has-text("Zustimmen")', 
+                    # Search all frames for consent buttons (GMX uses cross-origin iframes)
+                    clicked = False
+                    for selector in ['#save-all-pur', 'button:has-text("Akzeptieren und weiter")',
+                                    'button:has-text("Alle akzeptieren")', 'button:has-text("Zustimmen")', 
                                     'button:has-text("Akzeptieren")', 'button:has-text("OK")',
                                     'button[data-testid="uc-accept-all-button"]']:
-                        btn = page.locator(selector).first
-                        if await btn.is_visible(timeout=2000):
-                            await btn.click()
-                            logger.info(f"Clicked consent: {selector}")
-                            await asyncio.sleep(3)
+                        if clicked:
                             break
+                        for frame in page.frames:
+                            btn = frame.locator(selector).first
+                            if await btn.count() > 0:
+                                try:
+                                    await btn.click(force=True, timeout=3000)
+                                    logger.info(f"Clicked consent: {selector} in frame {frame.url[:40]}")
+                                    await asyncio.sleep(3)
+                                    clicked = True
+                                    break
+                                except Exception:
+                                    continue
                 except Exception as e:
                     logger.warning(f"Consent handling failed: {e}")
                 url = page.url
@@ -722,7 +694,6 @@ class GmxService:
                 if await self._delete_alias(page, alias_email):
                     deleted_alias = alias_email
                     steps.append("deleted")
-                    # Don't reload — it breaks session. Just wait for DOM to settle.
                     await asyncio.sleep(3)
                 else:
                     logger.warning("Failed to delete alias, continuing")
@@ -755,6 +726,8 @@ class GmxService:
         except Exception as e:
             logger.error(f"Rotation fehlgeschlagen: {e}")
             return {"status": "failed", "error": str(e), "steps": steps, "execution_time": f"{time.time()-start_time:.2f}s"}
+        finally:
+            await self._pw_close()
 
     # ── OTP / Confirm URL ───────────────────────────────────────────────────
     # OTP bleibt auf CDP — funktioniert, komplex (MailCheck Extension, OOPIF)

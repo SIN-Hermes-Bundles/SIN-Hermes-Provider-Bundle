@@ -32,21 +32,8 @@ async def signup_fireworks(email: str, password: str) -> Dict[str, Any]:
         sys.path.insert(0, str(_Path(__file__).parent))
         
         async with async_playwright() as p:
-            browser = await p.chromium.connect_over_cdp("http://127.0.0.1:9222")
-            page = await browser.contexts[0].new_page()
-            
-            # Clear Fireworks session (CDP-Level für httpOnly-Cookies!)
-            await page.goto("https://app.fireworks.ai/logout", timeout=10000, wait_until='domcontentloaded')
-            await asyncio.sleep(1)
-            await page.goto("https://app.fireworks.ai", wait_until='domcontentloaded')
-            await asyncio.sleep(1)
-            ctx = browser.contexts[0]
-            all_cookies = await ctx.cookies()
-            fw_cookies = [c for c in all_cookies if 'fireworks' in (c.get('domain') or '')]
-            non_fw_cookies = [c for c in all_cookies if 'fireworks' not in (c.get('domain') or '')]
-            await ctx.clear_cookies()
-            if non_fw_cookies:
-                await ctx.add_cookies(non_fw_cookies)
+            browser = await p.chromium.launch(headless=False)
+            page = await browser.new_page()
             await page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
             steps.append("fw_session_cleared")
 
@@ -156,8 +143,8 @@ async def login_fireworks(email: str, password: str) -> Dict[str, Any]:
     page = None
     try:
         playwright = await async_playwright().start()
-        browser = await playwright.chromium.connect_over_cdp("http://127.0.0.1:9222")
-        page = await browser.contexts[0].new_page()
+        browser = await playwright.chromium.launch(headless=False)
+        page = await browser.new_page()
 
         await page.goto("https://app.fireworks.ai/login")
         await asyncio.sleep(2)
@@ -277,7 +264,7 @@ async def login_fireworks(email: str, password: str) -> Dict[str, Any]:
             "https://app.fireworks.ai/",
         ]:
             try:
-                fresh = await browser.contexts[0].new_page()
+                fresh = await browser.new_page()
                 await fresh.goto(url, timeout=15000, wait_until='domcontentloaded')
                 await asyncio.sleep(2)
                 fresh_url = fresh.url
@@ -561,7 +548,7 @@ async def create_api_key(key_name: str = "sinator-key", page=None, playwright=No
         if not _playwright:
             _playwright = await async_playwright().start()
         if not _browser:
-            _browser = await _playwright.chromium.connect_over_cdp("http://127.0.0.1:9222")
+            _browser = await _playwright.chromium.launch(headless=False)
 
         if page:
             # Reuse existing page from login_fireworks (has active session)
@@ -571,7 +558,7 @@ async def create_api_key(key_name: str = "sinator-key", page=None, playwright=No
             await asyncio.sleep(2)
         else:
             # Create new page (may need login first)
-            pg = await _browser.contexts[0].new_page()
+            pg = await _browser.new_page()
             await pg.goto("https://app.fireworks.ai/settings/users/api-keys", wait_until='domcontentloaded')
             await asyncio.sleep(2)
 
@@ -700,8 +687,8 @@ async def verify_account(verify_url: str) -> bool:
     
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.connect_over_cdp("http://127.0.0.1:9222")
-            page = await browser.contexts[0].new_page()
+            browser = await p.chromium.launch(headless=False)
+            page = await browser.new_page()
             await page.goto(verify_url)
             await asyncio.sleep(2)
             logger.info(f"Verify URL opened: {page.url[:80]}")
