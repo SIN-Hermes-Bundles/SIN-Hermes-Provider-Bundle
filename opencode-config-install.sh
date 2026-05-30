@@ -207,7 +207,7 @@ echo ""
 echo -e "  Models:     ${CYAN}5 reasoning models (off/low/medium/high/max)${NC}"
 echo -e "  Base URL:   ${CYAN}https://sinatorpool-router.delqhi.com/inference/v1${NC}"
 echo -e "  Config:     ${CYAN}${CONFIG_FILE}${NC}"
-if [ -f "$BACKUP_FILE" ]; then
+if [ -n "${BACKUP_FILE:-}" ] && [ -f "$BACKUP_FILE" ]; then
     echo -e "  Backup:     ${CYAN}${BACKUP_FILE}${NC}"
 fi
 echo ""

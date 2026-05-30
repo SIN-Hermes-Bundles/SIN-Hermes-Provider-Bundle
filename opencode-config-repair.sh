@@ -22,58 +22,21 @@ echo -e "${CYAN}  OpenCode Config Repair — Emergency Fix${NC}"
 echo -e "${CYAN}══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
-# Backup
-mkdir -p "$BACKUP_DIR"
+mkdir -p "$OPENCODE_DIR" "$BACKUP_DIR"
+
 if [ -f "$CONFIG_FILE" ]; then
     BACKUP_FILE="${BACKUP_DIR}/opencode-broken-$(date +%Y%m%d-%H%M%S).json"
     cp "$CONFIG_FILE" "$BACKUP_FILE"
     log_info "Broken config backed up: ${BACKUP_FILE}"
 fi
 
-# Check if current config is valid JSON
-if [ -f "$CONFIG_FILE" ]; then
-    if python3 -c "import json; json.load(open('$CONFIG_FILE'))" 2>/dev/null; then
-        log_ok "Existing config is valid JSON — will preserve settings"
-        REPAIR_MODE="merge"
-    else
-        log_warn "Existing config is BROKEN JSON — will recreate"
-        REPAIR_MODE="replace"
-    fi
-else
-    log_info "No config found — creating new"
-    REPAIR_MODE="replace"
-fi
-
-# Repair
-if [ "$REPAIR_MODE" = "merge" ]; then
-    log_info "Merging Fireworks provider into existing config..."
-    python3 << 'PYEOF'
+REPAIR_API_KEY="${API_KEY}" python3 << 'PYEOF'
 import json, os
 
 config_path = os.path.expanduser("~/.config/opencode/opencode.json")
 api_key = os.environ.get('REPAIR_API_KEY', '<DEIN_API_KEY>')
 
-with open(config_path, 'r') as f:
-    cfg = json.load(f)
-
-# Ensure critical structure exists
-if "$schema" not in cfg:
-    cfg["$schema"] = "https://opencode.ai/config.json"
-
-if "permission" not in cfg:
-    cfg["permission"] = "allow"
-
-if "skills" not in cfg:
-    cfg["skills"] = {"paths": [os.path.expanduser("~/.config/opencode/skills")]}
-
-if "command" not in cfg:
-    cfg["command"] = {}
-
-if "mcp" not in cfg:
-    cfg["mcp"] = {}
-
-# Fireworks Provider with Reasoning
-fireworks = {
+FIREWORKS_PROVIDER = {
     "npm": "@ai-sdk/fireworks",
     "name": "Fireworks AI",
     "models": {
@@ -151,103 +114,65 @@ fireworks = {
     }
 }
 
-cfg.setdefault("provider", {})["fireworks-ai"] = fireworks
+can_load = False
+if os.path.exists(config_path):
+    try:
+        with open(config_path, 'r') as f:
+            cfg = json.load(f)
+        can_load = True
+    except (json.JSONDecodeError, ValueError):
+        can_load = False
 
-# Default agent
-if "agent" not in cfg:
-    cfg["agent"] = {
-        "SIN-Zeus": {"model": "fireworks-ai/deepseek-v4-pro"}
+if can_load:
+    print("Existing config is valid JSON — merging Fireworks provider")
+    if "$schema" not in cfg:
+        cfg["$schema"] = "https://opencode.ai/config.json"
+    if "permission" not in cfg:
+        cfg["permission"] = "allow"
+    if "skills" not in cfg:
+        cfg["skills"] = {"paths": [os.path.expanduser("~/.config/opencode/skills")]}
+    if "command" not in cfg:
+        cfg["command"] = {}
+    if "mcp" not in cfg:
+        cfg["mcp"] = {}
+    cfg.setdefault("provider", {})["fireworks-ai"] = FIREWORKS_PROVIDER
+    if "agent" not in cfg:
+        cfg["agent"] = {"SIN-Zeus": {"model": "fireworks-ai/deepseek-v4-pro"}}
+    if "defaultAgent" not in cfg:
+        cfg["defaultAgent"] = "SIN-Zeus"
+    if "defaultModel" not in cfg:
+        cfg["defaultModel"] = "fireworks-ai/deepseek-v4-pro"
+else:
+    print("No valid config found — creating fresh config with all 5 models")
+    cfg = {
+        "$schema": "https://opencode.ai/config.json",
+        "permission": "allow",
+        "skills": {"paths": [os.path.expanduser("~/.config/opencode/skills")]},
+        "command": {},
+        "mcp": {},
+        "provider": {"fireworks-ai": FIREWORKS_PROVIDER},
+        "agent": {"SIN-Zeus": {"model": "fireworks-ai/deepseek-v4-pro"}},
+        "defaultModel": "fireworks-ai/deepseek-v4-pro",
+        "defaultAgent": "SIN-Zeus"
     }
 
-if "defaultAgent" not in cfg:
-    cfg["defaultAgent"] = "SIN-Zeus"
-
-if "defaultModel" not in cfg:
-    cfg["defaultModel"] = "fireworks-ai/deepseek-v4-pro"
-
 with open(config_path, 'w') as f:
     json.dump(cfg, f, indent=2)
     f.write('\n')
 
-print("✅ Config repaired and merged")
+print(f"Config written with {len(cfg['provider']['fireworks-ai']['models'])} models")
 PYEOF
-else
-    log_info "Creating fresh config..."
-    python3 << 'PYEOF'
-import json, os
-
-config_path = os.path.expanduser("~/.config/opencode/opencode.json")
-api_key = os.environ.get('REPAIR_API_KEY', '<DEIN_API_KEY>')
-
-cfg = {
-    "$schema": "https://opencode.ai/config.json",
-    "permission": "allow",
-    "skills": {
-        "paths": [os.path.expanduser("~/.config/opencode/skills")]
-    },
-    "command": {},
-    "mcp": {},
-    "provider": {
-        "fireworks-ai": {
-            "npm": "@ai-sdk/fireworks",
-            "name": "Fireworks AI",
-            "models": {
-                "deepseek-v4-pro": {
-                    "id": "fireworks/deepseek-v4-pro",
-                    "name": "DeepSeek V4 Pro (SIN)",
-                    "options": {"thinking": {"type": "enabled", "budgetTokens": 64000}},
-                    "variants": {
-                        "off": {"thinking": {"type": "disabled"}},
-                        "low": {"thinking": {"type": "enabled", "budgetTokens": 4000}},
-                        "medium": {"thinking": {"type": "enabled", "budgetTokens": 16000}},
-                        "high": {"thinking": {"type": "enabled", "budgetTokens": 64000}},
-                        "max": {"thinking": {"type": "enabled", "budgetTokens": 128000}}
-                    },
-                    "limit": {"context": 1048576, "output": 65536}
-                }
-            },
-            "options": {
-                "baseURL": "https://sinatorpool-router.delqhi.com/inference/v1",
-                "apiKey": api_key
-            }
-        }
-    },
-    "agent": {
-        "SIN-Zeus": {"model": "fireworks-ai/deepseek-v4-pro"}
-    },
-    "defaultModel": "fireworks-ai/deepseek-v4-pro",
-    "defaultAgent": "SIN-Zeus"
-}
-
-with open(config_path, 'w') as f:
-    json.dump(cfg, f, indent=2)
-    f.write('\n')
-
-print("✅ Fresh config created")
-PYEOF
-fi
 
 log_ok "Config repaired!"
 
-# Verify
 if python3 -c "import json; json.load(open('$CONFIG_FILE'))" 2>/dev/null; then
     log_ok "JSON is valid"
-    
-    # Check if provider exists
     HAS_PROVIDER=$(python3 -c "import json; d=json.load(open('$CONFIG_FILE')); print('yes' if 'fireworks-ai' in d.get('provider', {}) else 'no')")
-    if [ "$HAS_PROVIDER" = "yes" ]; then
-        log_ok "Fireworks provider present"
-    else
-        log_warn "Fireworks provider missing"
-    fi
-    
-    # Check if reasoning exists
     HAS_REASONING=$(python3 -c "import json; d=json.load(open('$CONFIG_FILE')); p=d.get('provider',{}).get('fireworks-ai',{}); print('yes' if 'thinking' in str(p) else 'no')")
-    if [ "$HAS_REASONING" = "yes" ]; then
-        log_ok "Reasoning configs present"
-    else
-        log_warn "Reasoning configs missing"
-    fi
+    MODEL_COUNT=$(python3 -c "import json; d=json.load(open('$CONFIG_FILE')); print(len(d.get('provider',{}).get('fireworks-ai',{}).get('models',{})))")
+    [ "$HAS_PROVIDER" = "yes" ] && log_ok "Fireworks provider present" || log_warn "Fireworks provider missing"
+    [ "$HAS_REASONING" = "yes" ] && log_ok "Reasoning configs present" || log_warn "Reasoning configs missing"
+    [ "$MODEL_COUNT" = "5" ] && log_ok "All 5 models present" || log_warn "Expected 5 models, got ${MODEL_COUNT}"
 else
     log_error "Config is still broken!"
     exit 1
@@ -255,9 +180,5 @@ fi
 
 echo ""
 echo -e "${GREEN}══════════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}  ✅ OpenCode Config Repaired!${NC}"
+echo -e "${GREEN}  Done! OpenCode is ready.${NC}"
 echo -e "${GREEN}══════════════════════════════════════════════════════════════${NC}"
-echo ""
-echo -e "  Test: ${CYAN}opencode --version${NC}"
-echo -e "  Chat: ${CYAN}opencode chat --provider fireworks-ai --model deepseek-v4-pro${NC}"
-echo ""
