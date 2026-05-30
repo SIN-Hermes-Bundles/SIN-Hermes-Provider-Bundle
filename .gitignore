@@ -51,3 +51,10 @@ SIN-Code-*/
 
 # Temp scripts
 tools/test_otp_mailcheck.py
+
+# OpenCode config (user-specific, not project)
+opencode.json
+
+# Tunnel scripts (legacy — DNS record replaces)
+tools/sinator_tunnel.sh
+tools/start_tunnel.sh
