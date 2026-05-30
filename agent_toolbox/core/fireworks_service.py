@@ -290,8 +290,10 @@ async def _fireworks_playwright_onboarding(page) -> None:
         await ln.type("Cheetah", delay=50); await asyncio.sleep(0.5)
     
     terms_clicked = False
+    # Suche input[type="checkbox"] direkt — NIEMALS label klicken (enthält Terms-Link!)
+    all_cbs = await page.locator('input[type="checkbox"]').all()
     # 1. Try checkbox input with aria-label containing "agree"
-    for cb in await page.locator('input[type="checkbox"]').all():
+    for cb in all_cbs:
         lbl = (await cb.get_attribute('aria-label') or '').lower()
         n_id = (await cb.get_attribute('id') or '').lower()
         if 'agree' in lbl or 'terms' in n_id:
@@ -299,19 +301,40 @@ async def _fireworks_playwright_onboarding(page) -> None:
             terms_clicked = True
             break
     if not terms_clicked:
-        # 2. Label containing "I agree" (unique — nicht "Terms", matcht sonst Links)
+        # 2. Find checkbox via Label mit "I agree" — klicke INPUT, nicht label!
         for lbl in await page.locator('label').all():
             txt = (await lbl.text_content() or '').lower()
             if 'i agree' in txt:
-                await lbl.click(force=True); await asyncio.sleep(0.5)
+                cb = lbl.locator('input[type="checkbox"]')
+                if await cb.count() > 0:
+                    await cb.first.click(force=True)
+                else:
+                    for_attr = await lbl.get_attribute('for')
+                    if for_attr:
+                        cb = page.locator(f'input[id="{for_attr}"]')
+                        if await cb.count() > 0:
+                            await cb.first.click(force=True)
+                        else:
+                            continue
+                    else:
+                        continue
+                await asyncio.sleep(0.5)
                 terms_clicked = True
                 break
     if not terms_clicked:
-        # 3. Fallback: label with "Terms" (VORSICHT: könnte Link treffen!)
-        lbl = page.locator('label:has-text("Terms")').first
-        if await lbl.count() > 0:
-            logger.warning("Checkbox fallback: label:has-text('Terms') — könnte Link treffen")
-            await lbl.click(force=True); await asyncio.sleep(0.5)
+        # 3. Fallback: checkbox with any id — suche per JS
+        logger.warning("No checkbox with 'agree' or 'I agree' found — trying JS dispatch")
+        await page.evaluate("""
+            () => {
+                const cb = document.querySelector('input[type="checkbox"]');
+                if (cb) {
+                    cb.checked = true;
+                    cb.dispatchEvent(new Event('change', {bubbles: true}));
+                    cb.dispatchEvent(new Event('input', {bubbles: true}));
+                }
+            }
+        """)
+        await asyncio.sleep(0.5)
     
     for btn in await page.locator('button').all():
         txt = (await btn.text_content() or '').strip()
