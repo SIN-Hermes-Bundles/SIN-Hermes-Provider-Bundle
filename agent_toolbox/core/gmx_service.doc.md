@@ -21,7 +21,7 @@ GMX E-Mail Service für Alias-Rotation + OTP-Read (Playwright-native, V14 2026-0
 
 ## Wichtige Entscheidungen
 
-- **Playwright für webmailer**: webmailer.gmx.net ist same-process iframe → `frame.evaluate()` funktioniert für Shadow DOM Walk
+- **Playwright locator() für webmailer**: webmailer.gmx.net ist same-process iframe. `document.querySelectorAll()` findet NUR light-DOM Elemente (74), aber Playwright `locator()` durchdringt >2 Ebenen Shadow DOM nativ → findet `list-mail-item` (42 Elemente). **NICHT `frame.evaluate()` mit JS Walk verwenden**.
 - **CDP nur für OOPIF**: Email-Body lädt in `gmxnet.mailbody-ui.de` (cross-origin OOPIF) → `cdp.attach_to_iframe("mailbody-ui.de")` + `Runtime.evaluate`
 - **`page.reload()` verboten**: Killt GMX Session (Navigation zu auth.gmx.net). Nur iframe-lokaler reload via CDP
 - **`page.goto()` nur auf www.gmx.net**: Statische Landing Page. Ab navigator.gmx.net kein goto mehr (SPA!)
@@ -32,17 +32,19 @@ GMX E-Mail Service für Alias-Rotation + OTP-Read (Playwright-native, V14 2026-0
 1. `_pw_connect(cdp_port)` → bevorzugt `bap.navigator.gmx.net/mail?sid=` Seiten
 2. `_ensure_gmx_inbox()` → wenn nicht auf Inbox, www.gmx.net goto + "Zum Postfach" Klick + Consent-Handling
 3. Webmailer iframe finden (webmailer.gmx.net)
-4. JS Shadow DOM Walk: `querySelectorAll('*')` + `shadowRoot` Traversal + `findHost()` überspringt Shadow-Boundary
-5. Klick auf `LIST-MAIL-ITEM` → Email öffnet in Detail-Ansicht
-6. 5s warten → OOPIF `gmxnet.mailbody-ui.de` erscheint
-7. CDP `attach_to_iframe("mailbody-ui.de")` → `Runtime.evaluate("document.body.innerText")` → regex nach Fireworks Verify URL
+4. **Playwright locator(): `list-mail-item.list-mail-item--unread`** (pierced Shadow DOM nativ!)
+5. **Filter**: `has_text=sender_filter` → nur Emails von fireworks
+6. Klick auf erste unread Email → öffnet Detail-Ansicht
+7. 5s warten → OOPIF `gmxnet.mailbody-ui.de` erscheint
+8. CDP `attach_to_iframe("mailbody-ui.de")` → `Runtime.evaluate("document.body.innerText")` → regex nach Fireworks Verify URL
+9. Fallback: webmailer frame body (nur wenn OOPIF nicht verfügbar)
 
 ## open_gmx_email()
 
 Dedizierte Funktion zum Öffnen einer Email (kein OTP, kein URL-Read):
 ```python
 result = await gmx.open_gmx_email(sender_filter="fireworks", cdp_port=9222)
-# → {"status": "success", "clicked": {"clicked": true, "tag": "list-mail-item"}}
+# → {"status": "success", "clicked": True}
 ```
 
 CLI: `python tools/open_gmx_email.py --sender fireworks`

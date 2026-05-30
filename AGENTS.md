@@ -1,19 +1,44 @@
-# AGENTS.md — SINator Fireworks AI Rotator V14 (2026-05-29)
+# AGENTS.md — SINator Fireworks AI Rotator V15 (2026-05-30)
 
-## ✅ COMPLETE E2E FLOW — VERIFIED 2026-05-29
+## ✅ COMPLETE E2E FLOW — VERIFIED 2026-05-30
 
 ```bash
 python tools/rotate.py
-# → GMX Login (Step 0) → Alias Rotation (~37s) → Fireworks Signup
-# → OTP (25×8s poll) → Verify → Login → Onboarding → API Key → Pool
+# → GMX Login (Step 0) → Alias Rotation (~27s) → Fireworks Signup
+# → OTP (~11s, Playwright locator) → Verify → Login → Onboarding → API Key → Pool
 ```
 
-**Pool:** 218 Keys (94 verfügbar, 10 used, 114 suspended)
-**Cycle Time:** ~37s GMX + ~60s Fireworks signup + ~30s API Key = ~130s total
+**Pool:** 218 Keys (avail/used/suspended)
+**Cycle Time:** ~27s GMX + ~60s Fireworks signup + ~30s API Key = ~117s total
 **Pool-Router:** `sinatorpool-router.delqhi.com` (:9998, single endpoint, auto-failover)
 **Pool Proxies:** 10 Instanzen (:8888-:8897) hinter Pool-Router
-**API Key (alle Macs gleich):** `<DEIN_API_KEY>`
 **Services:** com.sinator.backend (:8000), com.sinator.pool-router (:9998), 10× pool-proxy (:8888-:8897), Pages (:8040)
+
+---
+
+## 🔧 V15 CHANGES (2026-05-30) — Playwright locator + CUA-Restriction
+
+### CUA: KEINE Web-Content-Interaktion mehr
+**Erkannt:** `cua_get_window_state()` liefert Chrome-AX-Tree (Tabs, Bookmarks, Browser-UI), **nicht** Web-Content. Checkboxen/Buttons sind darin nicht sichtbar.
+
+**Fix in `login_fireworks()`:**
+- CUA nur für `AXTextField` (Name-Felder) via `_cua_type()` — das funktioniert, weil Chrome Text-Felder im AX-Tree exponiert
+- Checkbox/Continue/Submit/Use-Cases komplett via Playwright `_fireworks_playwright_onboarding()`
+- Bei fehlendem CUA-Window: Playwright type() als Fallback für Names
+
+### _fireworks_playwright_onboarding() — Checkbox-Fix
+**Problem:** `label:has-text("Terms")` matched den "Terms of Service" Link, nicht die "I agree" Checkbox.
+**Fix:** 3-Stufen-Strategie: 1) `input[type="checkbox"]` mit aria-label "agree", 2) `label` mit textContent "i agree", 3) Fallback `label:has-text("Terms")`
+
+### read_otp() — Playwright locator statt JS Walk
+**Problem:** `document.querySelectorAll()` findet NUR 74 light-DOM Elemente. GMX `list-mail-item` sind in >2 Ebenen Shadow DOM, unsichtbar für native DOM-APIs.
+**Fix:** `webmailer_frame.locator('list-mail-item.list-mail-item--unread').filter(has_text='fireworks').first.click()` — Playwright locator durchdringt Shadow Boundaries nativ.
+
+### gmx_service.py — Playwright-native (1034 Zeilen)
+**Aktualisiert:**
+- `read_otp()` Z.860-884: JS Walk durch Playwright locator ersetzt (findet 42 list-mail-items vs. 0 via querySelectorAll)
+- `open_gmx_email()` Z.951-973: gleicher Fix
+- `open_gmx_email()` Z.977: `result`→`clicked` (stale Variable)
 
 ---
 
@@ -198,27 +223,23 @@ await btn.click(force=True)
 # verify: inp.input_value() == '' = success
 ```
 
-### CUA Onboarding (Fallback)
+### CUA Onboarding (NUR für Name-Textfelder)
 ```python
 # Names: "First" + "Last" suchen, NICHT "Name"
 el = _find_element("First", "AXTextField")  # richtig
 # el = _find_element("Name", "AXTextField")  # FALSCH!
 
-# Use-cases
-for uc_text in ["Prototype", "Flexible", "Conversational", "Search"]:
-    el = _find_element(uc_text, "AXCheckBox")
-    if el: _cua_click(el)
+# Rest via Playwright (CUA kann nur AXTextField — Chrome UI, nicht Web-Content)
+await _fireworks_playwright_onboarding(page)
 ```
 
 ### OTP Polling (read_otp)
 ```python
-# 25 attempts × 8s = 200s max
-for attempt in range(25):
-    await asyncio.sleep(8)
-    otp_result = await svc.read_otp(sender_filter="fireworks", max_retries=1, retry_delay=3)
-    if otp_result.get("status") == "success":
-        verify_url = otp_result.get("url") or otp_result.get("otp_url")
-        if verify_url: break
+# Find first unread Fireworks email via Playwright locator (pierces shadow DOM!)
+items = webmailer_frame.locator('list-mail-item.list-mail-item--unread').filter(has_text='fireworks')
+if await items.count() > 0:
+    await items.first.click()
+# OOPIF erscheint automatisch → CDP attach_to_iframe + regex URL extraction
 ```
 
 ---

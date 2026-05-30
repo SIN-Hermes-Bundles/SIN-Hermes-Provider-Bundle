@@ -1,6 +1,6 @@
 # fireworks_service.py
 
-Fireworks AI Account-Management: Signup, Login, Onboarding, API Key Erstellung. Hybrid aus Playwright (Form-Interaktion) und CUA (React Checkboxen im Onboarding).
+Fireworks AI Account-Management: Signup, Login, Onboarding, API Key Erstellung. Hybrid aus Playwright (Form-Interaktion) und CUA (nur für AXTextField).
 
 ## Berührt
 
@@ -17,5 +17,7 @@ Fireworks AI Account-Management: Signup, Login, Onboarding, API Key Erstellung. 
 
 ## Wichtige Entscheidungen
 
-- Playwright + CUA Hybrid: Playwright für Form-fill (stabiler), CUA für React-Checkboxen (Playwright hat keine AX-IDs in Custom React Components)
-- Onboarding-Fallback: Wenn CUA fehlschlägt, Playwright-eigener Onboarding-Pfad
+- **CUA NUR für Names (AXTextField):** `get_window_state` zeigt Chrome UI (Tabs, Bookmarks), NICHT Web-Content. Nur AXTextField-Elemente sind im Chrome-AX-Tree sichtbar. Checkbox/Button existieren dort nicht → müssen via Playwright geklickt werden.
+- **Checkbox-Strategie:** 1) `input[type="checkbox"]` mit aria-label "agree", 2) `label` mit textContent "i agree", 3) Fallback `label:has-text("Terms")` (matcht sonst Terms-of-Service-Links!).
+- **Onboarding-Pfad:** Immer Playwright für Checkbox/Continue/Submit. CUA nur für type_text (CGEvent-Tastendrücke) auf React-Textfelder, die Playwrights `type()` nicht verarbeitet.
+- **Erkannt (2026-05-30):** CUA `get_window_state` findet Chrome-AX-Tree (Tabs, Bookmarks, Toolbar). Web-Content (Canvas/Shadow-DOM) ist nicht sichtbar.

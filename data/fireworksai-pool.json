@@ -3644,7 +3644,10 @@
     "leased_until": null,
     "leased_to": null,
     "lease_id": null,
-    "leased_at": null
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T04:39:39Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "c562db99-026b-459f-8b55-27bdd1c63087",
@@ -3679,7 +3682,10 @@
     "leased_until": null,
     "leased_to": null,
     "lease_id": null,
-    "leased_at": null
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T04:56:03Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "79672849-d253-4904-8485-62569b288d7a",

@@ -850,56 +850,37 @@ class GmxService:
                     continue
                 
                 try:
-                    # Log webmailer state
-                    email_count = await webmailer_frame.evaluate('''
-                        () => document.querySelector('lux-message')?.shadowRoot
-                            ?.querySelectorAll('[data-id]')?.length || 0
-                    ''')
+                    # Log webmailer state via Playwright locator (pierces shadow DOM)
+                    email_count = await webmailer_frame.locator('list-mail-item').count()
                     logger.info(f"Webmailer frame found, emails in list: {email_count}")
                     
-                    # JS Shadow DOM Walk im webmailer iframe
-                    result = await webmailer_frame.evaluate(f"""(function() {{
-                        const query = '{sender_filter}'.toLowerCase();
-                        function findHost(el) {{
-                            const root = el.getRootNode();
-                            if (root instanceof ShadowRoot) {{
-                                const host = root.host;
-                                const tag = (host.tagName || '').toLowerCase();
-                                if (tag === 'list-mail-item' || tag === 'list-one-inbox') return host;
-                                return findHost(host);
-                            }}
-                            return el;
-                        }}
-                        function walk(root, depth) {{
-                            if (depth > 6) return null;
-                            if (!root || typeof root.querySelectorAll !== 'function') return null;
-                            const all = root.querySelectorAll('*');
-                            for (let i = 0; i < all.length; i++) {{
-                                const el = all[i];
-                                const text = (el.textContent || '').toLowerCase();
-                                if (text.includes(query)) {{
-                                    const host = findHost(el);
-                                    const tag = (host.tagName || '').toLowerCase();
-                                    if (tag === 'list-mail-item' || tag === 'list-one-inbox') {{
-                                        host.click();
-                                        host.dispatchEvent(new MouseEvent('mousedown', {{bubbles: true}}));
-                                        host.dispatchEvent(new MouseEvent('mouseup', {{bubbles: true}}));
-                                        return {{clicked: true, tag: tag}};
-                                    }}
-                                    host.click();
-                                    return {{clicked: true, method: 'host', hostTag: tag}};
-                                }}
-                                if (el.shadowRoot) {{
-                                    const found = walk(el.shadowRoot, depth + 1);
-                                    if (found && found.clicked) return found;
-                                }}
-                            }}
-                            return null;
-                        }}
-                        return walk(document, 0);
-                    }})()""")
+                    # Playwright locator findet list-mail-item auch in >1 Ebene Shadow DOM
+                    # (document.querySelectorAll findet sie nicht!)
+                    unread_first = True
+                    clicked = False
                     
-                    clicked = result and (isinstance(result, dict) and result.get("clicked"))
+                    # Priority 1: unread Fireworks email
+                    unread_locator = webmailer_frame.locator(
+                        'list-mail-item.list-mail-item--unread'
+                    ).filter(has_text=sender_filter)
+                    unread_count = await unread_locator.count()
+                    
+                    if unread_count > 0:
+                        logger.info(f"Found {unread_count} unread emails from '{sender_filter}', clicking first")
+                        await unread_locator.first.click(force=True, timeout=5000)
+                        await asyncio.sleep(5)
+                        clicked = True
+                    else:
+                        # Priority 2: any email from sender (fallback)
+                        any_locator = webmailer_frame.locator(
+                            'list-mail-item'
+                        ).filter(has_text=sender_filter)
+                        any_count = await any_locator.count()
+                        if any_count > 0:
+                            logger.info(f"No unread found, clicking first of {any_count} emails from '{sender_filter}'")
+                            await any_locator.first.click(force=True, timeout=5000)
+                            await asyncio.sleep(5)
+                            clicked = True
                     
                     if clicked:
                         logger.info("Clicked email in webmailer via Playwright")
@@ -967,50 +948,35 @@ class GmxService:
             if not webmailer_frame:
                 return {"status": "error", "error": "webmailer iframe nicht gefunden"}
             
-            result = await webmailer_frame.evaluate(f"""(function() {{
-                const query = '{sender_filter}'.toLowerCase();
-                function findHost(el) {{
-                    const root = el.getRootNode();
-                    if (root instanceof ShadowRoot) {{
-                        const host = root.host;
-                        const tag = (host.tagName || '').toLowerCase();
-                        if (tag === 'list-mail-item' || tag === 'list-one-inbox') return host;
-                        return findHost(host);
-                    }}
-                    return null;
-                }}
-                function walk(root, depth) {{
-                    if (depth > 6) return null;
-                    if (!root || typeof root.querySelectorAll !== 'function') return null;
-                    const all = root.querySelectorAll('*');
-                    for (let i = 0; i < all.length; i++) {{
-                        const el = all[i];
-                        const text = (el.textContent || '').toLowerCase();
-                        if (text.includes(query)) {{
-                            const host = findHost(el);
-                            if (!host) continue;
-                            const tag = (host.tagName || '').toLowerCase();
-                            host.click();
-                            host.dispatchEvent(new MouseEvent('mousedown', {{bubbles: true}}));
-                            host.dispatchEvent(new MouseEvent('mouseup', {{bubbles: true}}));
-                            return {{clicked: true, tag: tag}};
-                        }}
-                        if (el.shadowRoot) {{
-                            const found = walk(el.shadowRoot, depth + 1);
-                            if (found && found.clicked) return found;
-                        }}
-                    }}
-                    return null;
-                }}
-                return walk(document, 0);
-            }})()""")
+            # Playwright locator (pierces shadow DOM) statt JS evaluate
+            clicked = False
             
-            clicked = result and (isinstance(result, dict) and result.get("clicked"))
+            unread_locator = webmailer_frame.locator(
+                'list-mail-item.list-mail-item--unread'
+            ).filter(has_text=sender_filter)
+            unread_count = await unread_locator.count()
+            
+            if unread_count > 0:
+                logger.info(f"open_gmx_email: Found {unread_count} unread emails from '{sender_filter}'")
+                await unread_locator.first.click(force=True, timeout=5000)
+                await asyncio.sleep(3)
+                clicked = True
+            else:
+                any_locator = webmailer_frame.locator(
+                    'list-mail-item'
+                ).filter(has_text=sender_filter)
+                any_count = await any_locator.count()
+                if any_count > 0:
+                    logger.info(f"open_gmx_email: No unread, clicking first of {any_count} emails from '{sender_filter}'")
+                    await any_locator.first.click(force=True, timeout=5000)
+                    await asyncio.sleep(3)
+                    clicked = True
+            
             if not clicked:
                 return {"status": "not_found", "error": f"keine email mit '{sender_filter}' gefunden"}
             
             logger.info(f"Email geöffnet: {sender_filter}")
-            return {"status": "success", "clicked": result}
+            return {"status": "success", "clicked": clicked}
             
         except Exception as e:
             logger.error(f"Email öffnen fehlgeschlagen: {e}")

@@ -181,28 +181,21 @@ async def login_fireworks(email: str, password: str) -> Dict[str, Any]:
                     break
             steps.append("form_submitted")
 
-            # Onboarding via CUA with Playwright fallback
+            # Onboarding: CUA ONLY für Name-Felder (AXTextField),
+            # alles andere via Playwright (CUA tree zeigt Chrome UI, nicht Web-Content)
             if 'onboarding' in page.url:
-                logger.info("Onboarding via CUA + Playwright")
+                logger.info("Onboarding via CUA (names) + Playwright (rest)")
                 from cua_helper import find_cua_window
                 cua = find_cua_window(title_keywords=["fireworks"])
                 if cua:
                     pid, wid = cua
-                    
-                    def _cua_click(el):
-                        subprocess.run(["cua-driver", "call", "click"],
-                            capture_output=True, text=True, timeout=10,
-                            input=json.dumps({"pid": pid, "window_id": wid, "element_index": el}))
-                    
                     def _cua_type(text):
                         subprocess.run(["cua-driver", "call", "type_text"],
                             capture_output=True, text=True, timeout=5,
                             input=json.dumps({"pid": pid, "text": text}))
-                    
                     def _cua_scan():
                         from cua_helper import cua_get_window_state
                         return cua_get_window_state(pid, wid)
-                    
                     def _find_element(text, el_type="AXButton"):
                         for line in _cua_scan().split('\n'):
                             s = line.strip()
@@ -210,76 +203,35 @@ async def login_fireworks(email: str, password: str) -> Dict[str, Any]:
                                 m = _re.search(r'\]?\s*-\s*\[(\d+)\]', s)
                                 if m: return int(m.group(1))
                         return None
-                    
-                    # Fill names via CUA
+                    # CUA type_text für React-Textfelder (type() hat Probleme mit React controlled inputs)
                     for name, target in [("Super", "First"), ("Cheetah", "Last")]:
                         el = _find_element(target, "AXTextField")
                         if el:
-                            _cua_click(el); await asyncio.sleep(0.3)
+                            subprocess.run(["cua-driver", "call", "click"],
+                                capture_output=True, text=True, timeout=10,
+                                input=json.dumps({"pid": pid, "window_id": wid, "element_index": el}))
+                            await asyncio.sleep(0.3)
                             _cua_type(name); await asyncio.sleep(0.3)
-                    
-                    # Terms checkbox
-                    el = _find_element("agree", "AXCheckBox")
-                    if el: _cua_click(el); await asyncio.sleep(0.3)
-                    
-                    # Continue
-                    el = _find_element("Continue")
-                    if el: _cua_click(el); await asyncio.sleep(2)
-
-                    # Use-cases
-                    for uc_text in ["Prototype", "Flexible", "Conversational", "Search"]:
-                        el = _find_element(uc_text, "AXCheckBox")
-                        if el:
-                            _cua_click(el); await asyncio.sleep(0.2)
-                    
-                    # Submit — try CUA first
-                    el = _find_element("Submit")
-                    if el:
-                        _cua_click(el)
-                        for attempt in range(8):
-                            await asyncio.sleep(2)
-                            if any(x in page.url for x in ['home', 'account', 'settings']):
-                                logger.info(f"Redirect detected (attempt {attempt+1})")
-                                break
-                        else:
-                            # CUA Submit clicked but no redirect yet — check with fresh page
-                            logger.warning("CUA Submit — kein Redirect, force navigate check")
-                            redirected = False
-                            for url in [
-                                "https://app.fireworks.ai/settings/users/api-keys",
-                                "https://app.fireworks.ai/",
-                            ]:
-                                try:
-                                    fresh = await browser.contexts[0].new_page()
-                                    await fresh.goto(url, timeout=15000, wait_until='domcontentloaded')
-                                    await asyncio.sleep(2)
-                                    if any(x in fresh.url for x in ['home', 'account', 'settings', 'api-keys']):
-                                        redirected = True
-                                        await fresh.close()
-                                        logger.info("CUA Submit — logged in (verified via fresh page)")
-                                        break
-                                    await fresh.close()
-                                except Exception:
-                                    pass
-                            
-                            if not redirected:
-                                logger.warning("CUA Submit — force navigate failed, Playwright-Fallback")
-                                try:
-                                    await _fireworks_playwright_onboarding(page)
-                                except Exception as e:
-                                    logger.warning(f"Playwright-Fallback failed: {e}")
-                    else:
-                        logger.warning("CUA Submit nicht gefunden — Playwright-Fallback")
-                        try:
-                            await _fireworks_playwright_onboarding(page)
-                        except Exception as e:
-                            logger.warning(f"Playwright-Fallback failed: {e}")
                 else:
-                    logger.warning("CUA window not found — Playwright-Fallback")
-                    try:
-                        await _fireworks_playwright_onboarding(page)
-                    except Exception as e:
-                        logger.warning(f"Playwright-Fallback failed: {e}")
+                    logger.warning("CUA window not found — filling names via Playwright")
+                    fn = page.locator('input[name="firstName"]').first
+                    if await fn.count() == 0:
+                        fn = page.locator('input[name="first"]').first
+                    if await fn.count() > 0:
+                        await fn.click(); await asyncio.sleep(0.2)
+                        await fn.type("Super", delay=50); await asyncio.sleep(0.5)
+                    ln = page.locator('input[name="lastName"]').first
+                    if await ln.count() == 0:
+                        ln = page.locator('input[name="last"]').first
+                    if await ln.count() > 0:
+                        await ln.click(); await asyncio.sleep(0.2)
+                        await ln.type("Cheetah", delay=50); await asyncio.sleep(0.5)
+                
+                # Playwright für restliches Onboarding (CUA tree = Chrome UI, nicht Web-Content)
+                try:
+                    await _fireworks_playwright_onboarding(page)
+                except Exception as e:
+                    logger.warning(f"Playwright Onboarding failed: {e}")
                 steps.append("onboarding_complete")
 
             # Wait for redirect after onboarding (poll up to 15s)
@@ -337,17 +289,29 @@ async def _fireworks_playwright_onboarding(page) -> None:
         await ln.click(); await asyncio.sleep(0.2)
         await ln.type("Cheetah", delay=50); await asyncio.sleep(0.5)
     
-    terms = None
+    terms_clicked = False
+    # 1. Try checkbox input with aria-label containing "agree"
     for cb in await page.locator('input[type="checkbox"]').all():
         lbl = (await cb.get_attribute('aria-label') or '').lower()
         n_id = (await cb.get_attribute('id') or '').lower()
-        if 'terms' in lbl or 'agree' in lbl or 'terms' in n_id:
-            terms = cb
+        if 'agree' in lbl or 'terms' in n_id:
+            await cb.click(force=True); await asyncio.sleep(0.5)
+            terms_clicked = True
             break
-    if not terms:
-        terms = page.locator('label:has-text("Terms")').first
-    if await terms.count() > 0:
-        await terms.click(force=True); await asyncio.sleep(0.5)
+    if not terms_clicked:
+        # 2. Label containing "I agree" (unique — nicht "Terms", matcht sonst Links)
+        for lbl in await page.locator('label').all():
+            txt = (await lbl.text_content() or '').lower()
+            if 'i agree' in txt:
+                await lbl.click(force=True); await asyncio.sleep(0.5)
+                terms_clicked = True
+                break
+    if not terms_clicked:
+        # 3. Fallback: label with "Terms" (VORSICHT: könnte Link treffen!)
+        lbl = page.locator('label:has-text("Terms")').first
+        if await lbl.count() > 0:
+            logger.warning("Checkbox fallback: label:has-text('Terms') — könnte Link treffen")
+            await lbl.click(force=True); await asyncio.sleep(0.5)
     
     for btn in await page.locator('button').all():
         txt = (await btn.text_content() or '').strip()
