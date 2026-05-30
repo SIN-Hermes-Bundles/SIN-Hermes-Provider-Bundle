@@ -81,11 +81,25 @@ class GmxService:
                     logger.info(f"[_pw_connect] Found allEmailAddresses page: {url[:60]}...")
                     return page
         
-        # Otherwise, look for any valid GMX page (not iac/restart)
+        # Otherwise, prefer logged-in GMX pages (Sie sind eingeloggt)
         for ctx in browser.contexts:
             for pg in ctx.pages:
                 url = pg.url or ""
-                if "gmx.net" in url and "iac/restart" not in url and "session-expired" not in url and "logoutlounge" not in url:
+                if "gmx.net" in url and "iac/restart" not in url:
+                    try:
+                        text = await pg.evaluate("() => document.body.innerText.substring(0, 500)")
+                        if "Sie sind eingeloggt" in text or "Zum Postfach" in text:
+                            page = pg
+                            logger.info(f"[_pw_connect] Found logged-in GMX page: {url[:60]}...")
+                            return page
+                    except Exception:
+                        continue
+        
+        # Then any valid GMX page
+        for ctx in browser.contexts:
+            for pg in ctx.pages:
+                url = pg.url or ""
+                if "gmx.net" in url and "iac/restart" not in url and "session-expired" not in url and "logoutlounge" not in url and "registrieren" not in url.lower():
                     page = pg
                     logger.info(f"[_pw_connect] Found GMX page: {url[:60]}...")
                     return page
@@ -731,9 +745,10 @@ class GmxService:
             return None
 
     async def _ensure_gmx_inbox(self, page: Page, cdp_port: int = 9222) -> bool:
-        """Zur GMX Inbox navigieren OHNE page.goto (killt Session).
+        """Zur GMX Inbox navigieren — via www.gmx.net + Consent-Handling + Klick.
         
-        Nutzt CDP Target Discovery + SPA-Klicks. Nie page.goto/reload auf GMX.
+        www.gmx.net ist sicher zu navigieren (kein SPA). SPA startet erst
+        nach Klick auf 'Zum Postfach' → navigator.gmx.net.
         """
         url = page.url
         if "navigator.gmx.net" in url and "mail?sid=" in url:
@@ -741,46 +756,60 @@ class GmxService:
         if "bap.navigator.gmx.net" in url and "mail?sid=" in url:
             return True
         
-        logger.info(f"Current page: {url[:80]} — searching for inbox...")
+        logger.info(f"Current page: {url[:80]}")
         
-        # 1. CDP: finde existierende GMX inbox page
-        ws_url = await get_browser_ws_endpoint(cdp_port)
-        cdp = CDPClient(ws_url)
-        await cdp.connect()
+        # www.gmx.net ist safe für goto — kein SPA State
         try:
-            targets = await cdp.get_targets()
-            inbox_pages = [t for t in targets if t.get("type") == "page"
-                          and ("navigator.gmx.net" in t.get("url", "") or "bap.navigator.gmx.net" in t.get("url", ""))
-                          and "mail?sid=" in t.get("url", "")]
-            if inbox_pages:
-                logger.info(f"Found inbox in another tab: {inbox_pages[0]['url'][:60]}...")
-                return True
-        finally:
-            await cdp.disconnect()
+            await page.goto("https://www.gmx.net/", wait_until="domcontentloaded", timeout=15000)
+        except Exception:
+            pass
+        await asyncio.sleep(4)
         
-        # 2. SPA-Navigation via Klicks (nur auf GMX-Seiten)
-        if "gmx.net" in url or "gmx.de" in url:
-            for _ in range(5):
-                try:
-                    await page.locator('a:has-text("E-Mail")').first.click(timeout=3000)
-                    await asyncio.sleep(5)
-                    if "navigator.gmx.net" in page.url or "bap.navigator.gmx.net" in page.url:
-                        return True if "mail?sid=" in page.url else True
-                except Exception:
-                    await asyncio.sleep(2)
+        # Consent-Management erkennen und akzeptieren
+        for _ in range(5):
+            current = page.url
+            text = await page.evaluate("() => document.body.innerText")
             
-            # Versuche "Postfach" oder "Inbox"
-            for label in ["Postfach", "Inbox", "Mail"]:
+            if "consent-management" in current or "consent" in current.lower():
+                logger.info("Consent page detected — trying to accept...")
+                for label in ["Alle akzeptieren", "Accept all", "Zustimmen", "OK", "Weiter"]:
+                    try:
+                        btn = page.locator(f'button:has-text("{label}"), a:has-text("{label}")').first
+                        if await btn.is_visible(timeout=2000):
+                            await btn.click()
+                            await asyncio.sleep(3)
+                            text = await page.evaluate("() => document.body.innerText")
+                            break
+                    except Exception:
+                        continue
+            
+            if "navigator.gmx.net" in current and "mail?sid=" in current:
+                return True
+            
+            if "Sie sind eingeloggt" in text or "Zum Postfach" in text:
+                logger.info("Logged in — clicking Zum Postfach")
                 try:
-                    btn = page.locator(f'text={label}').first
-                    if await btn.is_visible(timeout=2000):
+                    btn = page.locator('button:has-text("Zum Postfach")').first
+                    if await btn.is_visible(timeout=3000):
                         await btn.click()
-                        await asyncio.sleep(4)
-                        return True
+                        await asyncio.sleep(5)
+                        if "navigator.gmx.net" in page.url:
+                            return True
                 except Exception:
-                    continue
+                    pass
+            
+            # Fallback: E-Mail Link
+            try:
+                await page.locator('a:has-text("E-Mail")').first.click(timeout=3000)
+                await asyncio.sleep(5)
+                if "navigator.gmx.net" in page.url:
+                    return True
+            except Exception:
+                pass
+            
+            await asyncio.sleep(2)
         
-        logger.warning("Could not reach GMX inbox via SPA clicks")
+        logger.warning(f"Could not reach GMX inbox. Final URL: {page.url[:80]}")
         return False
 
     async def read_otp(self, sender_filter: str = "fireworks", max_retries: int = 25, retry_delay: int = 8, cdp_port: int = 9222) -> Dict[str, Any]:
@@ -788,101 +817,102 @@ class GmxService:
         try:
             page = await self._pw_connect(cdp_port)
             
-            # Einmalig zur GMX Inbox navigieren — danach KEIN page.reload/page.goto mehr!
             if not await self._ensure_gmx_inbox(page, cdp_port):
                 return {"status": "not_logged_in", "otp_url": None, "error": "Konnte nicht zur GMX Inbox navigieren"}
             
             logger.info(f"Inbox URL: {page.url[:80]}")
             
-            # CDP Client für webmailer iframe + Shadow DOM
+            # CDP Client nur für mailbody-ui.de OOPIF (nach Email-Klick)
             ws_url = await get_browser_ws_endpoint(cdp_port)
             
-            # Poll for email (via CDP im webmailer iframe)
             for attempt in range(max_retries):
                 logger.info(f"OTP search attempt {attempt+1}/{max_retries}")
                 
-                # Connect CDP and attach to webmailer iframe
-                cdp = CDPClient(ws_url)
-                await cdp.connect()
-                try:
-                    # Attach to webmailer iframe (cross-origin, CDP hat keine CORS Limits)
-                    attached = await cdp.attach_to_iframe("webmailer.gmx.net")
-                    if attached:
-                        wm_sid, wm_target = attached
-                        # Enable runtime for JS evaluation
-                        try: await cdp.send_to_session(wm_sid, "Runtime.enable")
-                        except: pass
-                        
-                        # Search + click via JS evaluate in webmailer context
-                        result = await cdp.evaluate(wm_sid, f"""(function() {{
-                            const query = '{sender_filter}'.toLowerCase();
-                            function walk(root, depth) {{
-                                if (depth > 5) return null;
-                                if (!root || typeof root.querySelectorAll !== 'function') return null;
-                                const all = root.querySelectorAll('*');
-                                for (let i = 0; i < all.length; i++) {{
-                                    const el = all[i];
-                                    const text = (el.textContent || '').toLowerCase();
-                                    if (text.includes(query)) {{
-                                        let target = el;
-                                        for (let j = 0; j < 5; j++) {{
-                                            if (!target) break;
-                                            const tag = (target.tagName || '').toLowerCase();
-                                            const role = (target.getAttribute('role') || '').toLowerCase();
-                                            if (tag === 'list-mail-item' || role === 'row' || role === 'link') {{
-                                                target.click();
-                                                return {{clicked: true, tag: tag}};
-                                            }}
-                                            target = target.parentElement;
-                                        }}
-                                        try {{ el.click(); return {{clicked: true, method: 'direct'}}; }} catch(e) {{}}
-                                    }}
-                                    if (el.shadowRoot) {{
-                                        const found = walk(el.shadowRoot, depth + 1);
-                                        if (found && found.clicked) return found;
-                                    }}
-                                }}
-                                return null;
-                            }}
-                            return walk(document, 0);
-                        }})()""")
-                        
-                        clicked = result and result.get("result", {}).get("value", {}).get("clicked")
-                        
-                        if clicked:
-                            logger.info("Clicked email in webmailer via CDP")
-                            await asyncio.sleep(5)
-                            
-                            # Extract URL from webmailer
-                            text_result = await cdp.evaluate(wm_sid, "document.body.innerText")
-                            body_text = text_result.get("result", {}).get("value", "")
-                            urls = re.findall(r'https://app\.fireworks\.ai/[^\s"\'<>]+', body_text)
-                            candidates = [u for u in urls if any(
-                                k in u.lower() for k in ["confirm", "verify", "token", "auth", "activate", "signup"])]
-                            if candidates:
-                                confirm_url = html_module.unescape(candidates[0])
-                                logger.info(f"OTP URL found via webmailer: {confirm_url[:80]}...")
-                                return {{
-                                    "status": "success",
-                                    "otp_url": confirm_url,
-                                    "execution_time": f"{time.time()-start_time:.2f}s"
-                                }}
-                    else:
-                        logger.info("webmailer iframe not yet found, retrying...")
-                except Exception as e:
-                    logger.debug(f"Webmailer CDP attempt failed: {e}")
-                finally:
-                    await cdp.disconnect()
+                # Webmailer ist same-process iframe → Playwright frame API
+                webmailer_frame = None
+                for f in page.frames:
+                    if "webmailer.gmx.net" in f.url:
+                        webmailer_frame = f
+                        break
                 
-                # Also try CDP mailbody extraction (for already-opened emails)
-                confirm_url = await self._cdp_extract_url_from_email_body(cdp_port)
-                if confirm_url:
-                    logger.info(f"OTP URL found via OOPIF: {confirm_url[:80]}...")
-                    return {
-                        "status": "success",
-                        "otp_url": confirm_url,
-                        "execution_time": f"{time.time()-start_time:.2f}s"
-                    }
+                if not webmailer_frame:
+                    logger.info("webmailer iframe not yet available, retrying...")
+                    await asyncio.sleep(retry_delay)
+                    continue
+                
+                try:
+                    # Log webmailer state
+                    email_count = await webmailer_frame.evaluate('''
+                        () => document.querySelector('lux-message')?.shadowRoot
+                            ?.querySelectorAll('[data-id]')?.length || 0
+                    ''')
+                    logger.info(f"Webmailer frame found, emails in list: {email_count}")
+                    
+                    # JS Shadow DOM Walk im webmailer iframe
+                    result = await webmailer_frame.evaluate(f"""(function() {{
+                        const query = '{sender_filter}'.toLowerCase();
+                        function walk(root, depth) {{
+                            if (depth > 5) return null;
+                            if (!root || typeof root.querySelectorAll !== 'function') return null;
+                            const all = root.querySelectorAll('*');
+                            for (let i = 0; i < all.length; i++) {{
+                                const el = all[i];
+                                const text = (el.textContent || '').toLowerCase();
+                                if (text.includes(query)) {{
+                                    let target = el;
+                                    for (let j = 0; j < 5; j++) {{
+                                        if (!target) break;
+                                        const tag = (target.tagName || '').toLowerCase();
+                                        const role = (target.getAttribute('role') || '').toLowerCase();
+                                        if (tag === 'list-mail-item' || role === 'row' || role === 'link') {{
+                                            target.click();
+                                            return {{clicked: true, tag: tag}};
+                                        }}
+                                        target = target.parentElement;
+                                    }}
+                                    try {{ el.click(); return {{clicked: true, method: 'direct'}}; }} catch(e) {{}}
+                                }}
+                                if (el.shadowRoot) {{
+                                    const found = walk(el.shadowRoot, depth + 1);
+                                    if (found && found.clicked) return found;
+                                }}
+                            }}
+                            return null;
+                        }}
+                        return walk(document, 0);
+                    }})()""")
+                    
+                    clicked = result and (isinstance(result, dict) and result.get("clicked"))
+                    
+                    if clicked:
+                        logger.info("Clicked email in webmailer via Playwright")
+                        await asyncio.sleep(5)
+                        
+                        # 1. Check webmailer body for URL
+                        body_text = await webmailer_frame.evaluate("document.body.innerText")
+                        urls = re.findall(r'https://app\.fireworks\.ai/[^\s"\'<>]+', body_text)
+                        candidates = [u for u in urls if any(
+                            k in u.lower() for k in ["confirm", "verify", "token", "auth", "activate", "signup"])]
+                        if candidates:
+                            confirm_url = html_module.unescape(candidates[0])
+                            logger.info(f"OTP URL found via webmailer: {confirm_url[:80]}...")
+                            return {{
+                                "status": "success",
+                                "otp_url": confirm_url,
+                                "execution_time": f"{time.time()-start_time:.2f}s"
+                            }}
+                        
+                        # 2. Fallback: CDP mailbody-ui.de OOPIF
+                        confirm_url = await self._cdp_extract_url_from_email_body(cdp_port)
+                        if confirm_url:
+                            logger.info(f"OTP URL found via OOPIF: {confirm_url[:80]}...")
+                            return {{
+                                "status": "success",
+                                "otp_url": confirm_url,
+                                "execution_time": f"{time.time()-start_time:.2f}s"
+                            }}
+                except Exception as e:
+                    logger.debug(f"Webmailer evaluation failed: {e}")
                 
                 if attempt < max_retries - 1:
                     logger.info(f"No URL yet, waiting {retry_delay}s...")

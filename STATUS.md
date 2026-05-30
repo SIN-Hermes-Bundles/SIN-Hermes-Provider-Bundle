@@ -171,9 +171,12 @@ Fix: CDP `Runtime.evaluate` verwenden, nicht `page.goto()`
 | `_inject_cookies()` — Dead Code entfernt | ✅ |
 | `.gitignore` — debug, test_otp excluded | ✅ |
 | Pool `lease_*` fields — aktiv genutzt (kein Dead Code) | ⏭️ behalten |
+| OTP `read_otp()` — Playwright frame API für same-process webmailer iframe (statt CDP attach_to_iframe) | ✅ |
+| `_pw_connect()` — bevorzugt logged-in GMX pages (DOM-Check auf "Sie sind eingeloggt") | ✅ |
+| Consent-Management in `_ensure_gmx_inbox()` | ✅ |
 
-## 8. Next Steps (Priorisiert)
+## 8. Nächste Schritte
 
-1. 🔴 **OTP fix testen**: Chrome starten, GMX Session validieren, `read_otp()` mit `max_retries=5` testen
-2. 🟡 **Suspended-Key Handling**: Auto-Removal aus Pool bei Suspension + Status-Check vor Lease
-3. 🟡 **Testlauf rotate.py**: Volle Rotation testen → Pool wieder auffüllen
+1. 🔴 **OTP mit realem Signup testen** — aktuell kein Fireworks OTP im Postfach
+2. 🔴 **Full rotate.py testen** — E2E: Login → Alias → Signup → OTP → API Key
+3. 🟡 **Suspended Key Removal** — Keys mit `suspended=true` automatisch aus Pool entfernen
