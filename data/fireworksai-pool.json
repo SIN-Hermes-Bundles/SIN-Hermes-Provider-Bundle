@@ -4259,5 +4259,29 @@
     "leased_to": null,
     "lease_id": null,
     "leased_at": null
+  },
+  {
+    "id": "15660ad2-4956-49a9-9c05-7a85bb26ad8d",
+    "api_key": "STORED_IN_KEYCHAIN",
+    "alias_email": "alpha-lion-770@gmx.de",
+    "key_name": "alpha",
+    "created_at": "2026-05-30T23:26:38Z",
+    "used": false,
+    "used_at": null,
+    "credits_initial": 6.0,
+    "credits_remaining": 6.0,
+    "credits_checked_at": null
+  },
+  {
+    "id": "0d0e7a85-3b50-4b0a-93fe-cbd70aa7d64b",
+    "api_key": "STORED_IN_KEYCHAIN",
+    "alias_email": "pulse-raptor-659@gmx.de",
+    "key_name": "pulse",
+    "created_at": "2026-05-30T23:29:52Z",
+    "used": false,
+    "used_at": null,
+    "credits_initial": 6.0,
+    "credits_remaining": 6.0,
+    "credits_checked_at": null
   }
 ]
