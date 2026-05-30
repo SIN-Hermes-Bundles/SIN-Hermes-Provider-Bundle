@@ -95,8 +95,8 @@ with open('${OPENCODE_CONFIG}') as f:
     cfg = json.load(f)
 for provider_name, provider in cfg.get('provider', {}).items():
     if 'fireworks' in provider_name.lower():
-        provider.setdefault('options', {})['baseURL'] = 'http://localhost:8888/inference/v1'
-        print(f'  Patched {provider_name}: baseURL → http://localhost:8888/inference/v1')
+        provider.setdefault('options', {})['baseURL'] = 'https://sinatorpool-router.delqhi.com/inference/v1'
+        print(f'  Patched {provider_name}: baseURL → https://sinatorpool-router.delqhi.com/inference/v1')
 with open('${OPENCODE_CONFIG}', 'w') as f:
     json.dump(cfg, f, indent=2)
 " 2>/dev/null || echo "  (opencode config patch skipped — no fireworks provider found)"

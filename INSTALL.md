@@ -42,9 +42,9 @@ cd SIN-Hermes-Provider-Bundle
 ## Verification
 
 ```bash
-# 1. Check Pool Router
-curl -s http://localhost:9998/health | python3 -m json.tool
-# → Expected: {"status": "ok", "pools": [...]}
+# 1. Check Pool Router (via public endpoint)
+curl -s https://sinatorpool-router.delqhi.com/inference/v1/models | python3 -m json.tool | head -20
+# → Expected: {"object": "list", "data": [{"id": "accounts/fireworks/models/deepseek-v4-pro", ...}]}
 
 # 2. Check Auto-Start Service
 launchctl list | grep com.sinator.pool-router
@@ -59,8 +59,9 @@ ls -la ~/.hermes/hermes-agent/tools/tool_search.py
 # → Expected: File exists
 
 # 5. Test API Key (optional)
-curl -s -X POST http://localhost:9998/inference/v1/chat/completions \
+curl -s -X POST https://sinatorpool-router.delqhi.com/inference/v1/chat/completions \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $FIREWORKS_AI_API_KEY" \
   -d '{"model":"accounts/fireworks/models/deepseek-v4-flash","messages":[{"role":"user","content":"hi"}],"max_tokens":10}'
 ```
 

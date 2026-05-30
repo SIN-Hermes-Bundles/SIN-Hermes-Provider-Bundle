@@ -17,7 +17,7 @@ trigger:
 Installiert das [SIN-Hermes-Provider-Bundle](https://github.com/SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle) auf einem neuen Mac.
 
 Enthaelt:
-- Pool-Router (localhost:9998) mit Auto-Failover ueber 10 Proxys
+- Pool-Router (sinatorpool-router.delqhi.com) mit Auto-Failover ueber 10 Proxys
 - 412 PRECONDITION_FAILED Retry-Patch
 - User-Agent Spoof-Patch (max_retries=0 fuer Router-Retry)
 - Hermes Config mit `max_turns=999999`
@@ -56,7 +56,7 @@ hermes auth add custom:fireworks --type api-key --api-key "$FIREWORKS_AI_API_KEY
 echo "=== Verifizierung ===" && \
 pgrep -f pool-router.py >/dev/null && echo "[OK] Router laeuft" || echo "[FAIL] Router nicht laeuft" && \
 launchctl list | grep -q pool-router && echo "[OK] launchd geladen" || echo "[FAIL] launchd nicht geladen" && \
-grep -q "base_url.*localhost:9998" ~/.hermes/config.yaml && echo "[OK] Config auf localhost:9998" || echo "[FAIL] Config falsch" && \
+grep -q "base_url.*delqhi.com" ~/.hermes/config.yaml && echo "[OK] Config auf sinatorpool-router.delqhi.com" || echo "[FAIL] Config falsch" && \
 grep -q "silent swap" ~/.sin-pool/server.py && echo "[OK] 412/429 silent swap" || echo "[FAIL] 412/429 silent swap fehlt" && \
 grep -q "silent swap" ~/dev/SINator-fireworksai/proxy/server.py && echo "[OK] Repo-Copy sync" || echo "[WARN] Repo-Copy diverged" && \
 grep -q "status_code == 412" ~/.hermes/hermes-agent/agent/error_classifier.py && echo "[OK] 412 Patch" || echo "[FAIL] 412 Patch fehlt" && \
@@ -69,7 +69,7 @@ Alle Checks muessen `[OK]` sein.
 ### 5. Test-Request (optional)
 
 ```bash
-curl -s http://localhost:9998/v1/models 2>&1 | head -5 || echo "Router nicht erreichbar (normal wenn noch kein Auth)"
+curl -s https://sinatorpool-router.delqhi.com/inference/v1/models 2>&1 | head -5 || echo "Router nicht erreichbar (normal wenn noch kein Auth)"
 ```
 
 ## Troubleshooting
