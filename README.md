@@ -104,6 +104,14 @@ Mit API Key:
 curl -fsSL https://raw.githubusercontent.com/SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle/main/opencode-config-install.sh | bash -s -- --api-key fw_xxx
 ```
 
+### Emergency Repair (Config kaputt?)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle/main/opencode-config-repair.sh | bash
+```
+
+Repariert broken `opencode.json` — bewahrt alle bestehenden Settings und fügt Fireworks Provider + Reasoning hinzu.
+
 ### Manuelle Konfiguration
 
 **OpenCode (`~/.config/opencode/opencode.json`):**
