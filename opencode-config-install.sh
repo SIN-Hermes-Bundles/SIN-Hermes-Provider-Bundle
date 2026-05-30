@@ -3,7 +3,7 @@
 # Mit Reasoning-Configs (thinking: enabled, budgetTokens)
 # 
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/SIN-Rotator/SINator-FireworksAI/main/opencode-config-install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle/main/opencode-config-install.sh | bash
 #   curl -fsSL ... | bash -s -- --api-key fw_xxx
 #   curl -fsSL ... | bash -s -- --dry-run
 
