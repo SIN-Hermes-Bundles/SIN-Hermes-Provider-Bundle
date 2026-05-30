@@ -12,6 +12,14 @@ import tempfile
 
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Load reference from opencode.json (single source of truth)
+with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "opencode.json")) as _f:
+    REFERENCE_PROVIDER = json.load(_f)["provider"]["fireworks-ai"]
+
+
+
+REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 REFERENCE_PROVIDER = {
     "npm": "@ai-sdk/fireworks",
     "name": "Fireworks AI",

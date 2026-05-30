@@ -19,31 +19,36 @@
             "off": {
               "thinking": {
                 "type": "disabled"
-              }
+              },
+              "temperature": 0
             },
             "low": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 4000
-              }
+              },
+              "temperature": 0
             },
             "medium": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 16000
-              }
+              },
+              "temperature": 0
             },
             "high": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 64000
-              }
+              },
+              "temperature": 0
             },
             "max": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 128000
-              }
+              },
+              "temperature": 0
             }
           },
           "limit": {
@@ -65,31 +70,36 @@
             "off": {
               "thinking": {
                 "type": "disabled"
-              }
+              },
+              "temperature": 0
             },
             "low": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 4000
-              }
+              },
+              "temperature": 0
             },
             "medium": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 16000
-              }
+              },
+              "temperature": 0
             },
             "high": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 32000
-              }
+              },
+              "temperature": 0
             },
             "max": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 64000
-              }
+              },
+              "temperature": 0
             }
           },
           "limit": {
@@ -111,31 +121,36 @@
             "off": {
               "thinking": {
                 "type": "disabled"
-              }
+              },
+              "temperature": 0
             },
             "low": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 4000
-              }
+              },
+              "temperature": 0
             },
             "medium": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 16000
-              }
+              },
+              "temperature": 0
             },
             "high": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 32000
-              }
+              },
+              "temperature": 0
             },
             "max": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 64000
-              }
+              },
+              "temperature": 0
             }
           },
           "limit": {
@@ -166,31 +181,36 @@
             "off": {
               "thinking": {
                 "type": "disabled"
-              }
+              },
+              "temperature": 0
             },
             "low": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 4000
-              }
+              },
+              "temperature": 0
             },
             "medium": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 16000
-              }
+              },
+              "temperature": 0
             },
             "high": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 32000
-              }
+              },
+              "temperature": 0
             },
             "max": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 64000
-              }
+              },
+              "temperature": 0
             }
           },
           "limit": {
@@ -221,31 +241,36 @@
             "off": {
               "thinking": {
                 "type": "disabled"
-              }
+              },
+              "temperature": 0
             },
             "low": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 4000
-              }
+              },
+              "temperature": 0
             },
             "medium": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 16000
-              }
+              },
+              "temperature": 0
             },
             "high": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 32000
-              }
+              },
+              "temperature": 0
             },
             "max": {
               "thinking": {
                 "type": "enabled",
                 "budgetTokens": 64000
-              }
+              },
+              "temperature": 0
             }
           },
           "limit": {
