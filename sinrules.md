@@ -1,7 +1,7 @@
 # SINRULES.md — Single Source of Truth Regeln
 
 > **ALLE Agenten MÜSSEN diese Regeln 100% befolgen. Keine Ausnahmen.**
-> Letzte Aktualisierung: 2026-05-30 (V15.1 — 223 Keys, ~140s avg, Session Reuse + Use-Cases Fix)
+> Letzte Aktualisierung: 2026-05-30 (V15.1 — 225 Keys, ~140s avg, Session Reuse + Use-Cases Fix)
 
 ---
 

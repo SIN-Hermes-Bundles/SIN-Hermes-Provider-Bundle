@@ -4,11 +4,11 @@
 
 | Metrik | Wert |
 |--------|------|
-| Total Keys | 218 |
-| Available | 18 |
+| Total Keys | 225 |
+| Available | 20 |
 | Used | 11 |
-| Suspended | 190 |
-| Latest | `2026-05-27T05:01:22Z` (storm-shark-550) |
+| Suspended | 194 |
+| Latest | `2026-05-30T06:55:00Z` (manual-key-2026-05-30) |
 
 ### Problem: 87% Suspended Rate
 - Fast alle Keys sind **suspended** (Spending Limit erreicht — $5 Credits aufgebraucht)
@@ -23,7 +23,7 @@
 
 ---
 
-## 2. Architecture (V14.2)
+## 2. Architecture (V15.1)
 
 ```
 tools/rotate.py
@@ -103,7 +103,7 @@ if attached:
 ## 4. Bekannte Probleme (nach Criticalität)
 
 ### 🔴 HIGH: Keine Available Keys mehr in Kürze
-- 18 von 218 Keys bleiben
+- 20 von 225 Keys bleiben
 - Suspended-Keys werden nicht auto-erkannt/proaktiv aus Pool entfernt
 - Rotation produziert Keys, die sofort suspended werden (FW erkennt Pattern?)
 

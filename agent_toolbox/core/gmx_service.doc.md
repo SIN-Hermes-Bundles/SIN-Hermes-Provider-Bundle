@@ -1,6 +1,6 @@
 # gmx_service.py
 
-GMX E-Mail Service für Alias-Rotation + OTP-Read (Playwright-native, V14 2026-05-30).
+GMX E-Mail Service für Alias-Rotation + OTP-Read (Playwright-native, V15.1 2026-05-30).
 
 - **Alias-Rotation**: Playwright iframe-Interaktion via webmailer.settings frame. `_find_alias_row()` nutzt `div.table_body-row` statt `document.body.innerText`. `_delete_alias()` nutzt `div.table_body-row:has-text()` für Row-Selektion, Dialog-Handler vor Click, JS dispatchEvent Fallback, DOM-Dialog Bestätigung (Löschen/OK/Bestätigen/Ja/Entfernen). `_verify_alias()` prüft `div.table_body-row` statt `document.body.innerText`.
 - **OTP/Verify-URL**: Playwright frame.evaluate() für webmailer (same-process iframe) + CDP OOPIF für mailbody-ui.de

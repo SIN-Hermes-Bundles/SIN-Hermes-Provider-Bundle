@@ -108,7 +108,7 @@
 
 ## 🚫 BANNED: CDP-Only Anti-Patterns (HISTORISCH — 2026-05-21)
 
-> **Diese Bans sind aus V5/V7. Aktueller Code (V14) nutzt Playwright-native — CDP wird nur noch für OTP-Extension und Cookie-Management verwendet.**
+> **Diese Bans sind aus V5/V7. Aktueller Code (V15.1) nutzt Playwright-native + Session Reuse — CDP wird nur noch für OTP-Extension und Cookie-Management verwendet.**
 
 | ❌ Verboten (historisch) | Grund |
 |--------------------------|-------|

@@ -69,7 +69,7 @@ python tools/rotate.py
 ✅ Fireworks Signup: Account verified
 ✅ Login + Onboarding: Redirect to /account/home
 ✅ API Key: fw_VXv4hCMCa9VWbVcidTdqD
-✅ Pool: 223 Keys total
+✅ Pool: 225 Keys total
 
 🎉 ROTATION COMPLETE — 139.6s
 ```
@@ -197,7 +197,7 @@ python tools/rotate.py
 
 ---
 
-## 🐛 BEKANNTE PROBLEME (2026-05-29)
+## 🐛 BEKANNTE PROBLEME (2026-05-30)
 
 ### Fireworks Account Suspension (Spending Limit)
 ```
@@ -327,7 +327,7 @@ Build: `cd ~/dev/SINator-dashboard && ./build.sh` → /Applications/SINator.app
 
 ---
 
-*Last Updated: 2026-05-29 (V14 — Playwright-native Migration)*
+*Last Updated: 2026-05-30 (V15.1 — Session Reuse + Use-Cases Fix + Radix UI Checkbox)*
 *All learnings propagated to AGENTS.md, knowledge-base.md, and banned.md.*
 
 <!-- gitnexus:start -->
