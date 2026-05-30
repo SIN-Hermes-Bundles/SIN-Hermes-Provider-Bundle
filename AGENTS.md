@@ -44,6 +44,36 @@ python tools/rotate.py
 - `open_gmx_email()` Z.951-973: gleicher Fix
 - `open_gmx_email()` Z.977: `result`→`clicked` (stale Variable)
 
+### 🔧 V15.1 CHANGES (2026-05-30) — Session Reuse + Use-Cases Fix
+
+**Problem 1: Use-Cases Checkboxen nicht gesetzt**
+- `input[type="checkbox"]` mit `aria-label` Matching funktionierte NICHT — Checkboxen wurden nicht gesetzt
+- **Fix:** `label:has-text("{use_case}")` als primäre Strategie (wie im alten Code von letzter Woche). Click auf Label triggert den echten Input. Fallback: `input[type="checkbox"]` mit `aria-label`.
+
+**Problem 2: Continue/Next Button nicht zuverlässig gefunden**
+- Nur ein einfacher Button-Scan traf manchmal den falschen Button
+- **Fix:** 3 Strategien: 1) `button:has-text("Continue")` + `is_visible() + not is_disabled()`, 2) `button[type="submit"]`, 3) Case-insensitive Scan aller Buttons. 2s wait nach Terms-Checkbox für React re-render.
+
+**Problem 3: API Key Seite redirected zu /login**
+- `create_api_key()` erstellte eine neue Page, aber Session-Cookies waren nicht gültig für API Key Seite
+- **Fix:** `login_fireworks()` gibt jetzt `page`, `playwright`, `browser` zurück. `create_api_key()` akzeptiert diese optional und wiederverwendet die Session. `rotate.py` übergibt sie durch.
+- **Impact:** Neue Signatur: `create_api_key(key_name, page=None, playwright=None, browser=None)`
+
+**Problem 4: Indentation Chaos in `create_api_key()`**
+- Durch viele inkrementelle Edits war die Funktion komplett durcheinandergeschrieben
+- **Fix:** `create_api_key()` komplett neu aufgebaut mit korrekter Indentation
+
+**Verification:**
+```
+✅ GMX Alias: spectra-shark-157@gmx.de (20.55s)
+✅ Fireworks Signup: Account verified
+✅ Login + Onboarding: Redirect to /account/home
+✅ API Key: fw_VXv4hCMCa9VWbVcidTdqD
+✅ Pool: 223 Keys total
+
+🎉 ROTATION COMPLETE — 139.6s
+```
+
 ---
 
 ## 🔧 V14 CHANGES (2026-05-29) — Playwright-native Migration

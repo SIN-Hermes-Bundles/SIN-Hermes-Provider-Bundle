@@ -27,15 +27,16 @@ Fireworks AI Account-Management: Signup, Login, Onboarding, API Key Erstellung. 
 
 1. **Name-Felder** (firstName/lastName) — Playwright `type()` mit delay
 2. **Terms-Checkbox** — `button[role="checkbox"]` + native `el.click()` (Radix UI)
-3. **Continue/Next** — Button mit Text-Matching
-4. **Use-Cases** — `input[type="checkbox"]` mit `aria-label` Matching (Prototype, Flexible capacity, Conversational, Search)
-5. **Submit/Get $5** — Button mit Text-Matching
+3. **Continue/Next** — 3 Strategien: 1) `button:has-text("Continue")` + `is_visible() + not is_disabled()`, 2) `button[type="submit"]`, 3) Case-insensitive Scan aller Buttons. 2s wait nach Terms-Checkbox für React re-render.
+4. **Use-Cases** — `label:has-text("{use_case}")` als primäre Strategie (Click auf Label triggert echten Input). Fallback: `input[type="checkbox"]` mit `aria-label`. (Prototype, Flexible capacity, Conversational, Search)
+5. **Submit/Get $5** — 2 Strategien: `button:has-text("Submit")` / `has-text("Get $5")` + Fallback case-insensitive Scan aller Buttons
 6. **Redirect-Check** — 10×2s Poll auf `home`/`account`/`settings` in URL
 7. **Force-Navigate** — Falls kein Redirect: direkt zu API-Keys Seite
 
 ## API Key Erstellung
 
-- `_generate_and_poll_key()` — Generate-Button klicken, 3 Retries mit Reload
-- Polling auf Key-Textarea oder Input-Feld
+- **Session Reuse:** `create_api_key(key_name, page=None, playwright=None, browser=None)` akzeptiert optional `page`/`playwright`/`browser` von `login_fireworks()`. Wiederverwendet die Session statt neue Page zu erstellen. Verhindert Login-Redirect auf API Key Seite.
+- `_generate_and_poll_key()` — Generate-Button klicken, 15 Retries mit 1s wait
+- Polling auf Key-Textarea oder Input-Feld via `fw_...` regex
 - Missing-Name Modal: Name eintragen + Retry
 - Ergebnis: `{api_key: "fw_...", name: "..."}`
