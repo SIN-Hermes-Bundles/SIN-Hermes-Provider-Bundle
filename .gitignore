@@ -32,3 +32,5 @@ node_modules/
 dist/
 build/
 *.egg-info/
+# graphify knowledge graph (auto-generated)
+graphify-out/
