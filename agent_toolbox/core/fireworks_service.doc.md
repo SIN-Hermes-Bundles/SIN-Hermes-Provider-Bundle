@@ -1,6 +1,6 @@
 # fireworks_service.py
 
-Fireworks AI Account-Management: Signup, Login, Onboarding, API Key Erstellung. Hybrid aus Playwright (Form-Interaktion) und CUA (nur für AXTextField).
+Fireworks AI Account-Management: Signup, Login, Onboarding, API Key Erstellung. Hybrid aus Playwright (Form-Interaktion) und CUA (nur für AXTextField). **Kein `connect_over_cdp()` mehr — alle Verbindungen via `chromium.launch()`**. (Chrome 148 Protocol-Mismatch mit Playwright 1.58/1.60.)
 
 ## Berührt
 
@@ -22,6 +22,7 @@ Fireworks AI Account-Management: Signup, Login, Onboarding, API Key Erstellung. 
 - **Fireworks Session vor Signup löschen (CDP-Level):** `ctx.clear_cookies()` + `ctx.add_cookies(non_fw_cookies)` + `localStorage.clear()` vor `/signup` goto. Löscht auch `httpOnly`/`Secure` Cookies. Fallback: force navigate `/logout` URLs.
 - **Onboarding komplett via Playwright** (CUA kann nur AXTextField — Chrome UI, nicht Web-Content)
 - **Chrome Password Save Dialog:** Vor Onboarding dismissen ("Nie"/"Never" Button finden und klicken)
+- **Neu (V15.3): `chromium.launch()` statt `connect_over_cdp()`**: Alle 4 Funktionen nutzen `launch()` (frischer Browser). Kein Cookie-Clearing nötig (frischer Browser = keine Session). Session Reuse zwischen `login_fireworks()` und `create_api_key()` via Page-Übergabe (unverändert).
 
 ## Onboarding Flow
 

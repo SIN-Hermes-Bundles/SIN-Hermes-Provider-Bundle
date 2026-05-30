@@ -16,6 +16,34 @@ python tools/rotate.py
 
 ---
 
+## 🔧 V15.3 CHANGES (2026-05-30) — `connect_over_cdp → launch()` (Chrome 148 Fix)
+
+### Problem: `connect_over_cdp` hängt mit Chrome 148
+Playwright `connect_over_cdp()` zu Chrome 148.0.7778.215 timeoutet nach 180s (Protocol-Mismatch). Ursache: Playwright 1.58.0/1.60.0 Node.js-Driver unterstützt CDP-Protokoll von Chrome 148 nicht.
+
+### Fix: `chromium.launch()` statt `connect_over_cdp`
+Alle 4 Funktionen (gmx + fireworks) nutzen jetzt `chromium.launch()` mit FRISCHEM Browser:
+- **gmx_service.py** `_pw_connect()`: `p.chromium.launch(headless=False)` statt `connect_over_cdp()`
+- **fireworks_service.py** `signup_fireworks()`, `login_fireworks()`, `create_api_key()`, `verify_account()`: gleicher Fix
+- `_pw_close()` für saubere Ressourcen-Freigabe (finally-Block in `rotate_alias()`)
+
+### Keine Cookie-Injection mehr
+- Vorher: `context.add_cookies()` aus `data/gmx-cookies.json` → injizierte `__Host-ls.keep_me_signed_in` → GMX redirectet zu `logoutlounge?status=session` (Cookie-Session abgelaufen)
+- Jetzt: FRISCHER Browser ohne Cookies → Konsent-Handler → voller Email+Password Login auf `auth.gmx.net`. **Kein CAPTCHA.** (GMX zeigt CAPTCHA nur bei verdächtigen IPs/Browsern, Playwright Chromium ist vertrauenswürdig.)
+
+### Consent-Handler Fix
+- GMX Consent-Portal lädt in Cross-Origin iframe (`plus.gmx.net/lt`). Button `#save-all-pur` ist darin.
+- `page.locator('#save-all-pur')` findet NICHTS (sucht nur main frame).
+- Fix: `for frame in page.frames: frame.locator('#save-all-pur')` — iteriert ALLE Frames.
+- 77 GMX-Cookies werden nicht mehr injiziert (verursachten `logoutlounge`).
+
+### Neue Messwerte
+- **GMX Alias Rotation**: ~52s (davon ~22s Login + Consent)
+- **Gesamt-Zyklus**: ~52s GMX + ~60s Fireworks signup + ~30s API Key = ~140s (unverändert)
+- **Keine Abhängigkeit von laufendem Chrome 148** — funktioniert auch wenn Chrome geschlossen ist
+
+---
+
 ## 🔧 V15.2 CHANGES (2026-05-30) — Session Expiry Auto-Recovery + Dashboard Terminal Launch
 
 ### Session Expiry Auto-Recovery (gmx_service.py:380-410)
@@ -210,7 +238,7 @@ python tools/rotate.py
 
 ---
 
-## 🐛 BEKANNTE PROBLEME (2026-05-30)
+## 🐛 BEKANNTE PROBLEME
 
 ### Fireworks Account Suspension (Spending Limit)
 ```
@@ -234,6 +262,13 @@ spending limit or failure to pay past invoices.
 ---
 
 ## 🔑 CRITICAL PATTERNS (MANDATORY)
+
+### `_pw_connect()` — `chromium.launch()` statt `connect_over_cdp()`
+- **NICHT** `connect_over_cdp()` verwenden (hängt mit Chrome 148 — Protocol-Mismatch)
+- **IMMER** `chromium.launch(headless=False)` — frischer Browser, kein CAPTCHA
+- `_pw_close()` im finally-Block aufrufen (Browser-Ressourcen freigeben)
+- Kein Cookie-Injection `context.add_cookies()` — verursacht `logoutlounge`-Redirect
+- Consent-Handler: `for frame in page.frames: frame.locator('#save-all-pur')` — Cross-Origin iframe
 
 ### Playwright Form Interaction
 ```python
@@ -296,8 +331,8 @@ if await items.count() > 0:
 ```
 agent_toolbox/
 ├── core/
-│   ├── fireworks_service.py    V6: Playwright+CUA Hybrid + Session Reuse (655 lines)
-│   ├── gmx_service.py          Playwright-native (910 lines)
+│   ├── fireworks_service.py    V6: Playwright+CUA Hybrid + launch() (682 lines)
+│   ├── gmx_service.py          Playwright-native, launch() statt connect_over_cdp (1071 lines)
 │   ├── pool_manager.py         Pool-Stats + Key-Management (518 lines)
 │   ├── config_manager.py       GMX+FW Credentials (46 lines)
 │   └── cua_helper.py           CUA Window Detection (nur für Onboarding)

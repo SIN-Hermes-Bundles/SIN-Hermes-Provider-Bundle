@@ -1,7 +1,9 @@
 # gmx_service.py
 
-GMX E-Mail Service für Alias-Rotation + OTP-Read (Playwright-native, V15.1 2026-05-30).
+GMX E-Mail Service für Alias-Rotation + OTP-Read (Playwright-native, V15.3 2026-05-30).
 
+- **Verbindung**: `_pw_connect()` nutzt `chromium.launch()` statt `connect_over_cdp()` (Chrome 148 Protocol-Mismatch). Brauner, frischer Browser ohne Cookie-Injection.
+- **Consent**: `_login()` sucht `#save-all-pur` in ALLEN page.frames (Cross-Origin iframe `plus.gmx.net/lt`)
 - **Alias-Rotation**: Playwright iframe-Interaktion via webmailer.settings frame. `_find_alias_row()` nutzt `div.table_body-row` statt `document.body.innerText`. `_delete_alias()` nutzt `div.table_body-row:has-text()` für Row-Selektion, Dialog-Handler vor Click, JS dispatchEvent Fallback, DOM-Dialog Bestätigung (Löschen/OK/Bestätigen/Ja/Entfernen). `_verify_alias()` prüft `div.table_body-row` statt `document.body.innerText`.
 - **OTP/Verify-URL**: Playwright frame.evaluate() für webmailer (same-process iframe) + CDP OOPIF für mailbody-ui.de
 - **Email-Öffnen**: `open_gmx_email()` — Shadow DOM Walk + findHost() für LIST-MAIL-ITEM
@@ -26,6 +28,9 @@ GMX E-Mail Service für Alias-Rotation + OTP-Read (Playwright-native, V15.1 2026
 - **`page.reload()` verboten**: Killt GMX Session (Navigation zu auth.gmx.net). Nur iframe-lokaler reload via CDP
 - **`page.goto()` nur auf www.gmx.net**: Statische Landing Page. Ab navigator.gmx.net kein goto mehr (SPA!)
 - **`return {{...}}` verboten**: Python interpretiert `{{}}` als Set mit Dict → `TypeError: unhashable type: 'dict'`. Immer einfache `{}` für Dicts
+- **`chromium.launch()` statt `connect_over_cdp()`**: `connect_over_cdp` hängt mit Chrome 148 (Protocol-Mismatch). `launch()` startet frischen Chromium. Kein CAPTCHA (Playwright Chromium = trusted browser).
+- **Keine Cookie-Injection**: `context.add_cookies()` aus `data/gmx-cookies.json` verursacht `logoutlounge`-Redirect. Injectierte `keep_me_signed_in` Cookies sind abgelaufen.
+- **Consent-Suche über ALLE Frames**: `page.locator('#save-all-pur')` findet nichts (sucht nur main frame). `for frame in page.frames: frame.locator('#save-all-pur')` iteriert ALLE Frames.
 
 ## OTP Flow (read_otp)
 
