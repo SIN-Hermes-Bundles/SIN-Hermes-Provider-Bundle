@@ -83,6 +83,8 @@ tail -f ~/.hermes/logs/pool-router.log
 
 ## Post-Install
 
+### Hermes (Terminal)
+
 ```bash
 # Add Fireworks API key
 hermes auth add custom:fireworks --type api-key --api-key "$FIREWORKS_AI_API_KEY"
@@ -93,6 +95,25 @@ hermes model
 # Test chat
 hermes chat -Q -q "say hello"
 ```
+
+### OpenCode CLI (One-Liner)
+
+Für OpenCode CLI mit Reasoning-Configs (5 Modelle, 5 Varianten):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SIN-Rotator/SINator-FireworksAI/main/opencode-config-install.sh | bash
+```
+
+Mit API Key:
+```bash
+curl -fsSL https://raw.githubusercontent.com/SIN-Rotator/SINator-FireworksAI/main/opencode-config-install.sh | bash -s -- --api-key fw_xxx
+```
+
+Installiert:
+- `provider.fireworks-ai` in `~/.config/opencode/opencode.json`
+- 5 Reasoning-Modelle (deepseek-v4-pro, glm-5p1, kimi-k2p6, qwen3p6-plus, minimax-m2p7)
+- Varianten: `off` / `low` / `medium` / `high` / `max`
+- Base URL: `https://sinatorpool-router.delqhi.com/inference/v1`
 
 ## Troubleshooting
 
