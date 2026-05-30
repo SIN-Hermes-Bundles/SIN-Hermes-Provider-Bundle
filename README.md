@@ -33,7 +33,7 @@ OpenAI-compatible proxy with automatic key rotation on rate-limits.
 
 ### Backend: 10 Proxys (lokal, 8888-8897)
 
-Jeder Proxy ist eine eigene aiohttp-Instanz mit charset-Fix, eigenem API-Key aus dem Pool (218 Keys), und launchd-Autostart.
+Jeder Proxy ist eine eigene aiohttp-Instanz mit charset-Fix, eigenem API-Key aus dem Pool (223 Keys), und launchd-Autostart.
 
 ## Installation
 
@@ -191,7 +191,7 @@ python tools/rotate.py
 ├── agent_toolbox/
 │   ├── core/
 │   │   ├── gmx_service.py           # GMX Session + Alias-Rotation (Playwright-native)
-│   │   ├── fireworks_service.py     # Fireworks Signup/Login/API-Key (Playwright+CUA)
+│   │   ├── fireworks_service.py     # Fireworks Signup/Login/API-Key (Playwright+CUA + Session Reuse)
 │   │   ├── pool_manager.py          # API-Key Pool-Manager (Lease/Return/Stats)
 │   │   ├── config_manager.py        # GMX+FW Credentials (data/config.json)
 │   │   └── cua_helper.py            # CUA Window Detection (Onboarding only)
@@ -230,4 +230,4 @@ python tools/rotate.py
 
 ---
 
-*Stand: 2026-05-29 | 218 Keys | 10 Proxys + Pool-Router | Playwright-native | V14*
+*Stand: 2026-05-30 | 223 Keys | 10 Proxys + Pool-Router | Playwright-native + Session Reuse | V15.1*
