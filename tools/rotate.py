@@ -80,7 +80,11 @@ async def main():
     logger.info("=== API Key ===")
     from fireworks_service import create_api_key
     key_name = alias.split("@")[0].split("-")[0] if alias else "sinator-key"
-    api_result = await create_api_key(key_name=key_name)
+    # Reuse page from login_fireworks to maintain session
+    page = login_result.get("page")
+    playwright = login_result.get("playwright")
+    browser = login_result.get("browser")
+    api_result = await create_api_key(key_name=key_name, page=page, playwright=playwright, browser=browser)
     api_key = api_result.get("api_key")
 
     if not api_key:
