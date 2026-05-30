@@ -3736,10 +3736,13 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780119296.00587,
+    "leased_until": 1780121371.922273,
     "leased_to": "proxy-1780008199",
-    "lease_id": "fc6af01a064c",
-    "leased_at": 1780117496.00587
+    "lease_id": "19bb254139d4",
+    "leased_at": 1780119571.922273,
+    "suspended": true,
+    "suspended_at": "2026-05-30T07:39:32Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "319f69df-cf80-49af-a0f3-56fc72b6e92c",
@@ -3752,10 +3755,10 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780119296.192553,
+    "leased_until": 1780121371.9667351,
     "leased_to": "proxy-1780008199-backup",
-    "lease_id": "8c7ab25eacea",
-    "leased_at": 1780117496.192553
+    "lease_id": "2a8c676f467b",
+    "leased_at": 1780119571.9667351
   },
   {
     "id": "6a17211b-ae59-48ab-9fbe-e383e9d67bfe",
@@ -3768,10 +3771,10 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780119297.389324,
-    "leased_to": "proxy-1780008198",
-    "lease_id": "68581ac8ef73",
-    "leased_at": 1780117497.389324
+    "leased_until": 1780121372.423249,
+    "leased_to": "proxy-1780008199",
+    "lease_id": "7904d892f36f",
+    "leased_at": 1780119572.423249
   },
   {
     "id": "f7da3771-1647-4633-9b80-de15493d69f4",
@@ -3784,10 +3787,10 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780119297.445648,
-    "leased_to": "proxy-1780008198-backup",
-    "lease_id": "6531f0b059a1",
-    "leased_at": 1780117497.445648
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null
   },
   {
     "id": "60cc554a-9b00-4301-a7ab-ed5d22f214dd",
@@ -3800,10 +3803,10 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780119298.498466,
-    "leased_to": "proxy-1780008198",
-    "lease_id": "185f1fac87fa",
-    "leased_at": 1780117498.498466
+    "leased_until": 1780122273.339212,
+    "leased_to": "proxy-1780008198-backup-backup",
+    "lease_id": "dc1c94d0e2fc",
+    "leased_at": 1780120473.339212
   },
   {
     "id": "7f464593-6637-4f2e-ad22-a5999a4315e5",
@@ -3816,10 +3819,10 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780119298.546327,
-    "leased_to": "proxy-1780008198-backup",
-    "lease_id": "a5d88d537619",
-    "leased_at": 1780117498.546327
+    "leased_until": 1780122629.638653,
+    "leased_to": "proxy-1780008198-backup-backup",
+    "lease_id": "34dc52360896",
+    "leased_at": 1780120829.638653
   },
   {
     "id": "88be419f-e3e8-4da9-aadd-d8385d21a018",
@@ -3832,10 +3835,10 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780119298.799235,
-    "leased_to": "proxy-1780008199",
-    "lease_id": "231b1c6619e6",
-    "leased_at": 1780117498.799235
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null
   },
   {
     "id": "bc908e00-a9dd-4f9e-998d-9f5671bf1f88",
@@ -3848,10 +3851,10 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780119298.872891,
-    "leased_to": "proxy-1780008199-backup",
-    "lease_id": "6adb60a8a688",
-    "leased_at": 1780117498.872891
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null
   },
   {
     "id": "e2a6736e-1842-444e-b58c-dbf0d339b5b5",
@@ -3864,10 +3867,10 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780119299.015987,
-    "leased_to": "proxy-1780008199",
-    "lease_id": "e6cd30f7afb6",
-    "leased_at": 1780117499.015987
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null
   },
   {
     "id": "bb12e4ca-1321-48a6-a804-63aeb0bd4728",
@@ -3880,10 +3883,10 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780119299.073173,
-    "leased_to": "proxy-1780008199-backup",
-    "lease_id": "aca6d8be0d27",
-    "leased_at": 1780117499.073173
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null
   },
   {
     "id": "8c6747c4-bef9-477f-a6e1-d2cfafd83e85",
@@ -3896,10 +3899,10 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780119299.968106,
-    "leased_to": "proxy-1780008198",
-    "lease_id": "c82a2b17d8aa",
-    "leased_at": 1780117499.968106
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null
   },
   {
     "id": "97c1715a-6fb6-4004-95cd-59ae01c992da",
@@ -3912,10 +3915,10 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780119300.015852,
-    "leased_to": "proxy-1780008198-backup",
-    "lease_id": "29cec348f85e",
-    "leased_at": 1780117500.015852
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null
   },
   {
     "id": "7e92eeac-a7cc-4e08-959c-10d0eef2f1de",
@@ -4043,6 +4046,18 @@
     "alias_email": "manual-entry@gmx.de",
     "key_name": "manual-key-2026-05-30",
     "created_at": "2026-05-30T07:28:46Z",
+    "used": false,
+    "used_at": null,
+    "credits_initial": 6.0,
+    "credits_remaining": 6.0,
+    "credits_checked_at": null
+  },
+  {
+    "id": "b1218483-8725-40cb-aeac-193440de4a80",
+    "api_key": "STORED_IN_KEYCHAIN",
+    "alias_email": "shadow-otter-761@gmx.de",
+    "key_name": "shadow",
+    "created_at": "2026-05-30T08:07:06Z",
     "used": false,
     "used_at": null,
     "credits_initial": 6.0,
