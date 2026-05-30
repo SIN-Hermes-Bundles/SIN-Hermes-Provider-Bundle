@@ -34,7 +34,7 @@ async def signup_fireworks(email: str, password: str) -> Dict[str, Any]:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=False)
             page = await browser.new_page()
-            await page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
+            # Fresh browser = no session to clear
             steps.append("fw_session_cleared")
 
             # Step 1: Signup form
@@ -149,8 +149,10 @@ async def login_fireworks(email: str, password: str) -> Dict[str, Any]:
         await page.goto("https://app.fireworks.ai/login")
         await asyncio.sleep(2)
 
-        # Check if already logged in (redirected to home/account)
-        if any(x in page.url for x in ['home', 'account', 'settings']):
+        # Check if already logged in (redirected to home/account) — check PATH only, not query params
+        from urllib.parse import urlparse
+        path = urlparse(page.url).path
+        if any(path.startswith(p) for p in ['/home', '/account', '/settings']):
             logger.info("Already logged in — skipping login form")
             steps.append("login_page")
             steps.append("credentials_filled")
@@ -250,7 +252,7 @@ async def login_fireworks(email: str, password: str) -> Dict[str, Any]:
         for attempt in range(8):
             await asyncio.sleep(2)
             try:
-                if any(x in page.url for x in ['home', 'account', 'settings']):
+                if any(page.url.split('?')[0].split('#')[0].rstrip('/').endswith(p) for p in ['/home', '/account', '/settings']):
                     logger.info(f"Redirect detected ({page.url[:60]})")
                     steps.append("login_success")
                     return {"status": "success", "steps_completed": steps, "page": page, "playwright": playwright, "browser": browser}
@@ -268,7 +270,9 @@ async def login_fireworks(email: str, password: str) -> Dict[str, Any]:
                 await fresh.goto(url, timeout=15000, wait_until='domcontentloaded')
                 await asyncio.sleep(2)
                 fresh_url = fresh.url
-                if any(x in fresh_url for x in ['home', 'account', 'settings', 'api-keys']):
+                from urllib.parse import urlparse
+                fp = urlparse(fresh_url).path
+                if any(fp.startswith(p) for p in ['/home', '/account', '/settings', '/api-keys']):
                     steps.append("login_success")
                     return {"status": "success", "steps_completed": steps, "page": fresh, "playwright": playwright, "browser": browser}
                 logger.warning(f"Fresh page landed on: {fresh_url[:60]}")
@@ -405,9 +409,11 @@ async def _fireworks_playwright_onboarding(page) -> None:
     if not submit_clicked:
         logger.warning("Could not find Submit/Get $5 button")
     
+    from urllib.parse import urlparse
     for _ in range(10):
         await asyncio.sleep(2)
-        if any(x in page.url for x in ['home', 'account', 'settings']):
+        p = urlparse(page.url).path
+        if any(p.startswith(x) for x in ['/home', '/account', '/settings']):
             logger.info("Playwright onboarding complete")
             return
     logger.warning("Playwright onboarding — kein Redirect, force navigate")

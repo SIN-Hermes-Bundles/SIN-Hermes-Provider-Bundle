@@ -804,13 +804,13 @@ class GmxService:
             
             if "consent-management" in current or "consent" in current.lower():
                 logger.info("Consent page detected — trying to accept...")
-                for label in ["Alle akzeptieren", "Accept all", "Zustimmen", "OK", "Weiter"]:
+                # Search all frames for consent button (GMX uses cross-origin iframe)
+                for frame in page.frames:
                     try:
-                        btn = page.locator(f'button:has-text("{label}"), a:has-text("{label}")').first
-                        if await btn.is_visible(timeout=2000):
-                            await btn.click()
+                        btn = frame.locator('#save-all-pur').first
+                        if await btn.count() > 0:
+                            await btn.click(force=True, timeout=3000)
                             await asyncio.sleep(3)
-                            text = await page.evaluate("() => document.body.innerText")
                             break
                     except Exception:
                         continue
