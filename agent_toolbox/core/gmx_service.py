@@ -46,6 +46,8 @@ class GmxService:
         self._pw_playwright = None
         self._pw_browser = None
         self._pw_context = None
+        self._pw_browser_ws = None
+        self._pw_browser_ws = None
         self.adjectives = [
             "elron", "dark", "swift", "iron", "silver", "golden", "crystal", "shadow",
             "storm", "frost", "blaze", "thunder", "cosmic", "neon", "cyber", "quantum",
@@ -67,16 +69,40 @@ class GmxService:
 
     # ── Playwright Connection ────────────────────────────────────────────
 
+    def _find_free_port(self, start: int = 9230, end: int = 9240) -> int:
+        """Find a free TCP port in range [start, end)."""
+        import socket
+        for port in range(start, end):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                try:
+                    s.bind(('127.0.0.1', port))
+                    return port
+                except OSError:
+                    continue
+        return start
+
     async def _pw_connect(self, cdp_port: int = 9222) -> Page:
         """Launch fresh Playwright Chromium and return a Page.
-        No cookie injection — fresh browser, handles consent in _login()."""
+        No cookie injection — fresh browser, handles consent in _login().
+        Launches with --remote-debugging-port for OOPIF CDP access."""
         logger.info(f"[_pw_connect] Launching Playwright Chromium (launch, port={cdp_port})")
         self._pw_playwright = await async_playwright().start()
+        debug_port = self._find_free_port(9230, 9240)
         self._pw_browser = await self._pw_playwright.chromium.launch(
-            headless=False, args=["--no-sandbox"]
+            headless=False, args=["--no-sandbox", f"--remote-debugging-port={debug_port}"]
         )
         self._pw_context = await self._pw_browser.new_context()
         page = await self._pw_context.new_page()
+        # Capture CDP WS endpoint for OOPIF access
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                resp = await client.get(f"http://127.0.0.1:{debug_port}/json/version")
+                if resp.status_code == 200:
+                    self._pw_browser_ws = resp.json().get("webSocketDebuggerUrl")
+                    logger.info(f"Playwright browser WS endpoint captured (port {debug_port})")
+        except Exception as e:
+            logger.warning(f"Could not get WS endpoint: {e}")
+            self._pw_browser_ws = None
         return page
 
     async def _pw_close(self):
@@ -94,6 +120,7 @@ class GmxService:
         self._pw_browser = None
         self._pw_context = None
         self._pw_playwright = None
+        self._pw_browser_ws = None
 
     async def _login(self, page: Page, email: str = "delqhi@gmx.de", password: str = "ZOE.jerry2024") -> bool:
         """Login to GMX via Playwright. Two-step flow: Email → Weiter → Password → Login."""
@@ -133,6 +160,7 @@ class GmxService:
                 logger.info(f"After consent: {url[:80]}")
             
             # Already logged in on www.gmx.net homepage with Zum Postfach?
+            await page.wait_for_selector('body', timeout=10000)
             text = await page.evaluate("() => document.body.innerText")
             if "Sie sind eingeloggt" in text or "Zum Postfach" in text:
                 logger.info("Detected logged-in state on homepage, clicking Zum Postfach")
@@ -675,13 +703,15 @@ class GmxService:
 
     # ── Alias Rotation ────────────────────────────────────────────────────
 
-    async def rotate_alias(self, new_alias_name: Optional[str] = None, cdp_port: int = 9222) -> Dict[str, Any]:
+    async def rotate_alias(self, new_alias_name: Optional[str] = None, page: Page = None, cdp_port: int = 9222) -> Dict[str, Any]:
         start_time = time.time()
         steps = []
         deleted_alias = None
         created_alias = None
+        _own_page = page is None
         try:
-            page = await self._pw_connect(cdp_port)
+            if page is None:
+                page = await self._pw_connect(cdp_port)
             if not await self._navigate_to_all_email_addresses(page):
                 return {"status": "failed", "deleted_alias": None, "created_alias": None,
                         "error": "Navigation fehlgeschlagen", "execution_time": f"{time.time()-start_time:.2f}s"}
@@ -694,9 +724,12 @@ class GmxService:
                 if await self._delete_alias(page, alias_email):
                     deleted_alias = alias_email
                     steps.append("deleted")
-                    await asyncio.sleep(3)
+                    # Double-verify deletion before proceeding (warn but don't abort)
+                    if not await self._verify_alias(page, alias_email, present=False, max_wait=10.0):
+                        logger.warning(f"Alias {alias_email} delete confirmed by UI but still visible — server may still process")
+                    await asyncio.sleep(4)  # let server process deletion
                 else:
-                    logger.warning("Failed to delete alias, continuing")
+                    logger.warning("Failed to delete alias — will attempt create anyway")
             else:
                 steps.append("no_alias_to_delete")
 
@@ -711,11 +744,17 @@ class GmxService:
                 if await self._fill_alias_input(page, current_alias):
                     await asyncio.sleep(1)
                     if await self._click_add_button(page):
-                        await asyncio.sleep(3)
+                        await asyncio.sleep(4)
                         if await self._verify_alias(page, alias_email, present=True):
                             created_alias = alias_email
                             steps.append("created")
                             break
+                        # Log page text to diagnose failure
+                        try:
+                            body = await page.evaluate("() => document.body?.innerText || '(no body)'")
+                            logger.warning(f"Create failed for {alias_email}. Page has alias section: {'allEmailAddresses' in page.url}. Body snippet: {body[:200]}")
+                        except Exception:
+                            logger.warning(f"Create failed for {alias_email} — could not read page text")
                 await asyncio.sleep(1)
 
             if created_alias:
@@ -727,53 +766,70 @@ class GmxService:
             logger.error(f"Rotation fehlgeschlagen: {e}")
             return {"status": "failed", "error": str(e), "steps": steps, "execution_time": f"{time.time()-start_time:.2f}s"}
         finally:
-            await self._pw_close()
+            if _own_page:
+                await self._pw_close()
 
     # ── OTP / Confirm URL ───────────────────────────────────────────────────
     # OTP bleibt auf CDP — funktioniert, komplex (MailCheck Extension, OOPIF)
 
-    async def _cdp_extract_url_from_email_body(self, cdp_port: int) -> Optional[str]:
+    async def _cdp_extract_url_from_email_body(self, page: Page, cdp_port: int = 9222) -> Optional[str]:
         """After clicking the email, extract Fireworks verify URL from the email body.
         
-        The opened email body loads in a cross-origin OOPIF from gmxnet.mailbody-ui.de.
-        Find that iframe target, attach to it, and extract the URL from its content.
-        """
+        Uses Playwright frames to find the mailbody-ui.de OOPIF (cross-origin iframe).
+        Fallback: search all page frames for fireworks URL."""
         try:
-            ws_url = await get_browser_ws_endpoint(cdp_port)
-            cdp = CDPClient(ws_url)
-            await cdp.connect()
-            try:
-                # Try mailbody-ui.de OOPIF — this is an iframe-type target
-                attached = await cdp.attach_to_iframe("mailbody-ui.de")
-                if attached:
-                    child_sid, target = attached
-                    text = await cdp.evaluate(child_sid, "document.body.innerText")
-                    body = text.get("result", {}).get("value", "")
-                    if body:
-                        urls = re.findall(r'https://app\.fireworks\.ai/[^\s"\'<>]+', body)
-                        candidates = [u for u in urls if any(
-                            k in u.lower() for k in ["confirm", "verify", "token", "auth", "activate", "signup"])]
-                        if candidates:
-                            return html_module.unescape(candidates[0])
-                
-                # Fallback: search all page + iframe targets for fireworks URL
-                targets = await cdp.get_targets()
-                for t in targets:
-                    url = t.get("url", "")
-                    if t.get("type") in ("page", "iframe") and ("gmx.net" in url or "mailbody" in url):
-                        sid = await cdp.attach_to_target(t["targetId"])
-                        text = await cdp.evaluate(sid, "document.body.innerText")
-                        result = text.get("result", {}).get("value", "")
-                        urls = re.findall(r'https://app\.fireworks\.ai/[^\s"\'<>]+', str(result))
-                        candidates = [u for u in urls if any(
-                            k in u.lower() for k in ["confirm", "verify", "token", "auth", "activate", "signup"])]
-                        if candidates:
-                            return html_module.unescape(candidates[0])
-                return None
-            finally:
-                await cdp.disconnect()
+            # Priority: search Playwright frames for mailbody-ui.de
+            for f in page.frames:
+                if "mailbody" in f.url or "gmxnet" in f.url:
+                    try:
+                        text = await f.evaluate("document.body.innerText")
+                        if text:
+                            urls = re.findall(r'https://app\.fireworks\.ai/[^\s"\'<>]+', text)
+                            candidates = [u for u in urls if any(
+                                k in u.lower() for k in ["confirm", "verify", "token", "auth", "activate", "signup"])]
+                            if candidates:
+                                return html_module.unescape(candidates[0])
+                    except Exception:
+                        continue
+            
+            # Fallback: search all page frames for fireworks URL
+            for f in page.frames:
+                try:
+                    text = await f.evaluate("document.body.innerText")
+                    if not text:
+                        continue
+                    urls = re.findall(r'https://app\.fireworks\.ai/[^\s"\'<>]+', text)
+                    candidates = [u for u in urls if any(
+                        k in u.lower() for k in ["confirm", "verify", "token", "auth", "activate", "signup"])]
+                    if candidates:
+                        return html_module.unescape(candidates[0])
+                except Exception:
+                    continue
+            
+            # Last resort: CDP direct to this page's target (if launched with debugging)
+            ws_url = self._pw_browser_ws if self._pw_browser_ws else None
+            if ws_url:
+                cdp = CDPClient(ws_url)
+                await cdp.connect()
+                try:
+                    targets = await cdp.get_targets()
+                    for t in targets:
+                        url = t.get("url", "")
+                        if t.get("type") in ("page", "iframe") and ("gmx.net" in url or "mailbody" in url):
+                            sid = await cdp.attach_to_target(t["targetId"])
+                            text = await cdp.evaluate(sid, "document.body.innerText")
+                            result = text.get("result", {}).get("value", "")
+                            urls = re.findall(r'https://app\.fireworks\.ai/[^\s"\'<>]+', str(result))
+                            candidates = [u for u in urls if any(
+                                k in u.lower() for k in ["confirm", "verify", "token", "auth", "activate", "signup"])]
+                            if candidates:
+                                return html_module.unescape(candidates[0])
+                finally:
+                    await cdp.disconnect()
+            
+            return None
         except Exception as e:
-            logger.debug(f"CDP URL extraction failed: {e}")
+            logger.debug(f"URL extraction failed: {e}")
             return None
 
     async def _ensure_gmx_inbox(self, page: Page, cdp_port: int = 9222) -> bool:
@@ -850,18 +906,16 @@ class GmxService:
         logger.warning(f"Could not reach GMX inbox. Final URL: {page.url[:80]}")
         return False
 
-    async def read_otp(self, sender_filter: str = "fireworks", max_retries: int = 25, retry_delay: int = 8, cdp_port: int = 9222) -> Dict[str, Any]:
+    async def read_otp(self, sender_filter: str = "fireworks", max_retries: int = 25, retry_delay: int = 8, page: Page = None, cdp_port: int = 9222) -> Dict[str, Any]:
         start_time = time.time()
-        try:
+        _own_page = page is None
+        if page is None:
             page = await self._pw_connect(cdp_port)
-            
+        try:
             if not await self._ensure_gmx_inbox(page, cdp_port):
                 return {"status": "not_logged_in", "otp_url": None, "error": "Konnte nicht zur GMX Inbox navigieren"}
             
             logger.info(f"Inbox URL: {page.url[:80]}")
-            
-            # CDP Client nur für mailbody-ui.de OOPIF (nach Email-Klick)
-            ws_url = await get_browser_ws_endpoint(cdp_port)
             
             for attempt in range(max_retries):
                 logger.info(f"OTP search attempt {attempt+1}/{max_retries}")
@@ -879,12 +933,9 @@ class GmxService:
                     continue
                 
                 try:
-                    # Log webmailer state via Playwright locator (pierces shadow DOM)
                     email_count = await webmailer_frame.locator('list-mail-item').count()
                     logger.info(f"Webmailer frame found, emails in list: {email_count}")
                     
-                    # Playwright locator findet list-mail-item auch in >1 Ebene Shadow DOM
-                    # (document.querySelectorAll findet sie nicht!)
                     unread_first = True
                     clicked = False
                     
@@ -900,7 +951,6 @@ class GmxService:
                         await asyncio.sleep(5)
                         clicked = True
                     else:
-                        # Priority 2: any email from sender (fallback)
                         any_locator = webmailer_frame.locator(
                             'list-mail-item'
                         ).filter(has_text=sender_filter)
@@ -929,8 +979,8 @@ class GmxService:
                                 "execution_time": f"{time.time()-start_time:.2f}s"
                             }
                         
-                        # 2. Fallback: CDP mailbody-ui.de OOPIF
-                        confirm_url = await self._cdp_extract_url_from_email_body(cdp_port)
+                        # 2. Fallback: Playwright frames (mailbody-ui.de OOPIF)
+                        confirm_url = await self._cdp_extract_url_from_email_body(page, cdp_port)
                         if confirm_url:
                             logger.info(f"OTP URL found via OOPIF: {confirm_url[:80]}...")
                             return {
@@ -947,10 +997,12 @@ class GmxService:
             
             logger.warning("OTP email not found after all attempts")
             return {"status": "not_found", "otp_url": None, "error": "Nicht gefunden"}
-            
         except Exception as e:
             logger.error(f"OTP search failed: {e}")
             return {"status": "error", "otp_url": None, "error": str(e)}
+        finally:
+            if _own_page:
+                await self._pw_close()
 
     async def open_gmx_email(self, sender_filter: str = "fireworks", cdp_port: int = 9222) -> Dict[str, Any]:
         """Dedizierter GMX Email-Opener.

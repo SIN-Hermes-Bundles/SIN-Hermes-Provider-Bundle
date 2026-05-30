@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
 # Docs: rotate.doc.md
 """
-SINator - Rotation Tool V7 (2026-05-28)
+SINator - Rotation Tool V8 (2026-05-30)
 
-Vereinfachte Version: Nutzt GmxService + FireworksService (raw CDP).
-Kein Playwright mehr im Haupt-Workflow.
-
-Usage:
-    python tools/rotate.py              # Auto-generated alias
-    python tools/rotate.py my-alias-123 # Specific alias name
+ONE Playwright browser für den gesamten Prozess.
+Kein close/open zwischen GMX und Fireworks mehr.
 """
 import sys
 import os
@@ -36,77 +32,94 @@ async def main():
     args = parser.parse_args()
 
     t0 = time.time()
-
-    # ═══ Step 0: GMX Login (via Hermes browser_* tools + CDP fallback) ═══
-    logger.info("=== GMX Login ===")
+    from playwright.async_api import async_playwright
     from gmx_service import GmxService
+    from fireworks_service import signup_fireworks, login_fireworks, create_api_key, verify_account
+
     gmx = GmxService()
 
-    # Prüfe ob bereits eingeloggt
-    session_check = await gmx.check_session(cdp_port=args.cdp_port)
-    if session_check.get("status") == "logged_in":
-        logger.info("✅ Bereits eingeloggt (Session restored)")
-    else:
-        logger.info("Nicht eingeloggt — GMX Login wird von GmxService._ensure_mail_session beim nächsten Aufruf gehandhabt")
+    # ═══ ONE Browser für den gesamten Prozess ═══
+    logger.info("=== Starting shared Playwright browser ===")
+    p = await async_playwright().start()
+    browser = await p.chromium.launch(headless=False)
+    page = await browser.new_page()
 
-    # ═══ Step 1: GMX Alias Rotation ═══
-    logger.info("=== GMX Alias Rotation ===")
-    result = await gmx.rotate_alias(new_alias_name=args.alias, cdp_port=args.cdp_port)
-    if result.get('status') != 'success':
-        logger.error(f"❌ GMX rotation failed: {result.get('error')}")
-        return
-    alias = result.get('created_alias')
-    logger.info(f"✅ GMX Alias: {alias} ({result.get('execution_time')})")
+    try:
+        # ═══ Step 1: GMX Alias Rotation ═══
+        logger.info("=== GMX Alias Rotation ===")
+        result = await gmx.rotate_alias(new_alias_name=args.alias, page=page)
+        if result.get('status') != 'success':
+            logger.error(f"❌ GMX rotation failed: {result.get('error')}")
+            return
+        alias = result.get('created_alias')
+        logger.info(f"✅ GMX Alias: {alias} ({result.get('execution_time')})")
 
-    # ═══ Step 2: Fireworks Signup + OTP ═══
-    logger.info("=== Fireworks Signup ===")
-    from fireworks_service import signup_fireworks
-    signup_result = await signup_fireworks(alias, args.password)
-    if signup_result.get('status') == 'success':
-        logger.info(f"✅ Fireworks signup OK: {signup_result.get('verify_url', '')[:60]}")
-    else:
-        logger.info(f"Signup: {signup_result.get('status')} — {signup_result.get('error', '')}")
+        # ═══ Step 2: Fireworks Signup (gleicher Browser) ═══
+        logger.info("=== Fireworks Signup ===")
+        signup_result = await signup_fireworks(alias, args.password, page=page, playwright=p, browser=browser)
+        if signup_result.get('status') != 'success':
+            logger.error(f"❌ Signup failed: {signup_result.get('error')}")
+            return
+        logger.info("✅ Signup form submitted, waiting for verification email...")
 
-    # ═══ Step 3: Fireworks Login + Onboarding ═══
-    logger.info("=== Fireworks Login + Onboarding ===")
-    from fireworks_service import login_fireworks
-    login_result = await login_fireworks(alias, args.password)
-    if login_result.get('status') == 'success':
-        logger.info(f"✅ Login OK: {login_result.get('steps_completed', [])}")
-    else:
-        logger.info(f"Login: {login_result.get('status')} — {login_result.get('error', '')}")
+        # ═══ Step 3: OTP lesen (zurück zu GMX im selben Browser) ═══
+        logger.info("=== OTP ===")
+        # Navigate back to GMX (shared browser keeps cookies)
+        await page.goto("https://www.gmx.net/", timeout=15000)
+        await asyncio.sleep(2)
+        otp_result = await gmx.read_otp(page=page)
+        verify_url = otp_result.get("otp_url")
+        if not verify_url:
+            logger.error(f"❌ OTP not found: {otp_result.get('error')}")
+            return
+        logger.info(f"✅ OTP URL: {verify_url[:60]}...")
 
-    # ═══ Step 4: API Key ═══
-    logger.info("=== API Key ===")
-    from fireworks_service import create_api_key
-    key_name = alias.split("@")[0].split("-")[0] if alias else "sinator-key"
-    # Reuse page from login_fireworks to maintain session
-    page = login_result.get("page")
-    playwright = login_result.get("playwright")
-    browser = login_result.get("browser")
-    api_result = await create_api_key(key_name=key_name, page=page, playwright=playwright, browser=browser)
-    api_key = api_result.get("api_key")
+        # ═══ Step 4: Verify Account (selber Browser) ═══
+        await page.goto(verify_url, timeout=20000)
+        await asyncio.sleep(3)
+        logger.info("✅ Account verified")
 
-    if not api_key:
-        logger.error(f"❌ API Key creation failed: {api_result.get('error')}")
-        return
+        # ═══ Step 5: Fireworks Login + Onboarding (selber Browser) ═══
+        logger.info("=== Fireworks Login + Onboarding ===")
+        login_result = await login_fireworks(alias, args.password, page=page, playwright=p, browser=browser)
+        if login_result.get('status') != 'success':
+            logger.error(f"❌ Login failed: {login_result.get('error')}")
+            return
+        logger.info(f"✅ Login OK")
 
-    logger.info(f"✅ API Key: {api_key}")
+        # ═══ Step 6: API Key (selber Browser) ═══
+        logger.info("=== API Key ===")
+        key_name = alias.split("@")[0].split("-")[0] if alias else "sinator-key"
+        api_result = await create_api_key(key_name=key_name, page=page, playwright=p, browser=browser)
+        api_key = api_result.get("api_key")
 
-    # ═══ Step 5: Save to pool ═══
-    if args.save:
-        try:
-            from pool_manager import PoolManager
-            pool = PoolManager()
-            pool.add_key(api_key=api_key, alias_email=alias, key_name=key_name)
-            logger.info(f"✅ Saved to pool ({pool.get_stats()['total']} keys total)")
-        except Exception as e:
-            logger.warning(f"Pool save skipped: {e}")
+        if not api_key:
+            logger.error(f"❌ API Key creation failed: {api_result.get('error')}")
+            return
 
-    elapsed = time.time() - t0
-    logger.info(f"\n🎉 ROTATION COMPLETE — {elapsed:.1f}s")
-    logger.info(f"   Alias:   {alias}")
-    logger.info(f"   API Key: {api_key}")
+        logger.info(f"✅ API Key: {api_key}")
+
+        # ═══ Step 7: Save to pool ═══
+        if args.save:
+            try:
+                from pool_manager import PoolManager
+                pool = PoolManager()
+                pool.add_key(api_key=api_key, alias_email=alias, key_name=key_name)
+                logger.info(f"✅ Saved to pool ({pool.get_stats()['total']} keys total)")
+            except Exception as e:
+                logger.warning(f"Pool save skipped: {e}")
+
+        elapsed = time.time() - t0
+        logger.info(f"\n🎉 ROTATION COMPLETE — {elapsed:.1f}s")
+        logger.info(f"   Alias:   {alias}")
+        logger.info(f"   API Key: {api_key}")
+    finally:
+        # ═══ Browser schließen ═══
+        try: await browser.close()
+        except: pass
+        try: await p.stop()
+        except: pass
+        logger.info("Browser closed")
 
 
 if __name__ == "__main__":

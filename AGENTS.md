@@ -1,18 +1,65 @@
-# AGENTS.md — SINator Fireworks AI Rotator V15.2 (2026-05-30)
+# AGENTS.md — SINator Fireworks AI Rotator V15.4 (2026-05-30)
 
 ## ✅ COMPLETE E2E FLOW — VERIFIED 2026-05-30
 
 ```bash
 python tools/rotate.py
-# → GMX Login (Step 0) → Alias Rotation (~27s) → Fireworks Signup
-# → OTP (~11s, Playwright locator) → Verify → Login → Onboarding → API Key → Pool
+# → ONE Browser → Alias Rotation (~55s) → Signup → OTP (~12s) → Verify
+# → Login + Onboarding (~25s) → API Key (~30s) → Pool
 ```
 
-**Pool:** 225 Keys (avail/used/suspended)
-**Cycle Time:** ~27s GMX + ~60s Fireworks signup + ~30s API Key = ~140s total
+**Pool:** 229 Keys (0 used)
+**Cycle Time:** ~169s total (ein Browser, keine reopen)
 **Pool-Router:** `sinatorpool-router.delqhi.com` (:9998, single endpoint, auto-failover)
 **Pool Proxies:** 10 Instanzen (:8888-:8897) hinter Pool-Router
 **Services:** com.sinator.backend (:8000), com.sinator.pool-router (:9998), 10× pool-proxy (:8888-:8897), Pages (:8040)
+
+---
+
+## 🔧 V15.4 CHANGES (2026-05-30) — ONE Browser für gesamte Rotation
+
+### Problem: Jeder Schritt startet eigenen Browser + schließt ihn
+`rotate_alias()` → launch → close → `signup_fireworks()` → launch → close → `read_otp()` → launch → close → `login_fireworks()` → launch → `create_api_key()` → launch. = 5 Browser-Starts. CDP suchte OOPIF im falschen Browser (Chrome 148 statt Playwright-Browser). Session zwischen Steps verloren.
+
+### Fix: `rotate.py` steuert EINEN Browser (V8)
+- `rotate.py` erstellt `async_playwright()`, `chromium.launch()`, `new_page()` am Anfang
+- `playwright`, `browser`, `page` werden durch ALLE Funktionen gereicht
+- Nur am Ende (`finally`): `browser.close()`, `p.stop()`
+- Kein `_pw_connect()`/`_pw_close()` mehr zwischen den Steps
+
+**Betroffene Funktionen (alle optional page/playwright/browser):**
+- `GmxService.rotate_alias(page=...)` — skip `_pw_connect()` und `_pw_close()` wenn page gegeben
+- `GmxService.read_otp(page=...)` — skip `_pw_connect()`, cleanup nur bei own page
+- `signup_fireworks(page=..., playwright=..., browser=...)` — kein `async with async_playwright()` mehr
+- `login_fireworks(page=..., playwright=..., browser=...)` — kein eigener playwright mehr
+- `create_api_key(page=..., playwright=..., browser=...)` — unverändert (war schon kompatibel)
+- `verify_account()` — bleibt standalone (nur kurzer goto)
+
+### OOPIF-URL-Extraktion: Playwright-Frames statt CDP zu Chrome 148
+- `_cdp_extract_url_from_email_body(page, cdp_port)` sucht zuerst Playwright-Frames (`page.frames`) nach `mailbody-ui.de`
+- CDP-Fallback nutzt `self._pw_browser_ws` (Playwright-Browser, Port 9230) statt `get_browser_ws_endpoint(9222)` (Chrome 148)
+- `_pw_connect()` startet Chromium mit `--remote-debugging-port` (freier Port 9230-9240 via `_find_free_port()`)
+- Playwright `page.frames` OOPIF-Support funktioniert nativ
+
+### Neues: `_find_free_port(start, end)`
+- Scannt freien TCP-Port für `--remote-debugging-port` 
+- Verhindert "Port already in use" bei Mehrfach-Launches
+
+### Signup-Flow: OTP + Verify externalisiert
+- `signup_fireworks()` macht NUR das Signup-Formular (email → password → create account)
+- `rotate.py` übernimmt: OTP lesen (zurück zu GMX), Verify-URL öffnen (zu Fireworks)
+- Kein interner GmxService-Aufruf mehr in signup_fireworks
+
+### Zeitmessung (V15.4, ein Lauf)
+```
+GMX Alias:            54s
+Signup:               ~15s
+OTP:                  ~12s
+Verify + Login:       ~25s  
+API Key:              ~30s
+──────────────────────────
+Total:                ~169s
+```
 
 ---
 

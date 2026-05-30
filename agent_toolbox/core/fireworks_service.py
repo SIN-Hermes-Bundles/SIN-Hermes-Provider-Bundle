@@ -12,139 +12,112 @@ from typing import Dict, Any
 logger = logging.getLogger(__name__)
 
 
-async def signup_fireworks(email: str, password: str) -> Dict[str, Any]:
-    """Create new Fireworks account via signup form + OTP verification.
+async def signup_fireworks(email: str, password: str, page=None, playwright=None, browser=None) -> Dict[str, Any]:
+    """Create new Fireworks account via signup form.
     
     Flow:
     1. /signup → fill email → Next → fill 2x password → Create Account
-    2. Poll GMX for verification email (via MailCheck extension)
-    3. Open verify URL to confirm account
-    4. Returns {status, verify_url, steps_completed}
+    2. Returns {status, steps_completed, page, playwright, browser}
+       (OTP + verify handled externally by rotate.py)
+    
+    Can reuse an existing page/browser (from rotate.py) or create its own.
     """
     import asyncio
-    import sys
     from playwright.async_api import async_playwright
-    from pathlib import Path as _Path
     
+    _own_playwright = None
     steps = []
     try:
-        _sys_path = sys.path.copy()
-        sys.path.insert(0, str(_Path(__file__).parent))
-        
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False)
+        if not playwright:
+            _own_playwright = await async_playwright().start()
+            playwright = _own_playwright
+        if not browser:
+            browser = await playwright.chromium.launch(headless=False)
+        if not page:
             page = await browser.new_page()
-            # Fresh browser = no session to clear
-            steps.append("fw_session_cleared")
-
-            # Step 1: Signup form
-            await page.goto("https://app.fireworks.ai/signup")
+        
+        await page.goto("https://app.fireworks.ai/signup")
+        await asyncio.sleep(2)
+        
+        # Cookie
+        try:
+            await page.locator('button:has-text("Accept All")').first.click(force=True, timeout=5000)
             await asyncio.sleep(2)
-            
-            # Cookie
-            try:
-                await page.locator('button:has-text("Accept All")').first.click(force=True, timeout=5000)
-                await asyncio.sleep(2)
-            except: pass
-            
-            # Fill email
-            email_inp = page.locator('input[name="email"]').first
-            if await email_inp.count() == 0:
-                email_inp = page.locator('input[type="email"]').first
-            await email_inp.fill(email)
-            steps.append("email_filled")
+        except: pass
+        
+        # Fill email
+        email_inp = page.locator('input[name="email"]').first
+        if await email_inp.count() == 0:
+            email_inp = page.locator('input[type="email"]').first
+        await email_inp.fill(email)
+        steps.append("email_filled")
+        await asyncio.sleep(1)
+        
+        # Next
+        for btn in await page.locator('button[type="submit"]').all():
+            if 'Next' in (await btn.text_content() or ''):
+                await btn.click(force=True); await asyncio.sleep(2)
+                break
+        steps.append("next_clicked")
+        
+        # Fill BOTH passwords
+        pws = await page.locator('input[type="password"]').all()
+        if len(pws) >= 2:
+            for pw in pws[:2]:
+                await pw.click(); await asyncio.sleep(0.2)
+                await pw.fill("")
+                await pw.type(password, delay=40)
+                await asyncio.sleep(0.3)
+            steps.append("passwords_filled")
             await asyncio.sleep(1)
             
-            # Next
+            # Create Account
             for btn in await page.locator('button[type="submit"]').all():
-                if 'Next' in (await btn.text_content() or ''):
-                    await btn.click(force=True); await asyncio.sleep(2)
-                    break
-            steps.append("next_clicked")
-            
-            # Fill BOTH passwords
-            pws = await page.locator('input[type="password"]').all()
-            if len(pws) >= 2:
-                for pw in pws[:2]:
-                    await pw.click(); await asyncio.sleep(0.2)
-                    await pw.fill("")
-                    await pw.type(password, delay=40)
-                    await asyncio.sleep(0.3)
-                steps.append("passwords_filled")
-                await asyncio.sleep(1)
-                
-                # Create Account
-                for btn in await page.locator('button[type="submit"]').all():
-                    if 'Create Account' in (await btn.text_content() or ''):
-                        await btn.click(force=True)
-                        logger.info("Create Account clicked")
-                        break
-                # Verify page advanced (wait for redirect away from /signup)
-                for _ in range(10):
-                    await asyncio.sleep(1)
-                    if '/signup' not in page.url or 'verify' in page.url:
+                if 'Create Account' in (await btn.text_content() or ''):
+                    await btn.click(force=True)
+                    logger.info("Create Account clicked")
+                    await asyncio.sleep(5)
+                    steps.append("account_clicked")
+                    if page.url != "https://app.fireworks.ai/signup":
                         logger.info(f"Page advanced to: {page.url[:60]}")
-                        break
-                steps.append("create_clicked")
-            
-            # Step 2: Poll for OTP email via read_otp (CDP-based, proven)
-            # read_otp handled den kompletten Polling-Zyklus (25×8s = 200s max)
-            # WICHTIG: KEIN outer loop — read_otp pollt intern. page.reload() killt GMX Session,
-            # daher verwendet read_otp jetzt page.goto() statt reload (siehe gmx_service.py)
-            logger.info("Waiting for Fireworks verification email...")
-            from agent_toolbox.core.gmx_service import GmxService
-            svc = GmxService()
-            
-            otp_result = await svc.read_otp(sender_filter="fireworks", max_retries=25, retry_delay=8)
-            verify_url = otp_result.get("url") or otp_result.get("otp_url")
-            
-            if verify_url:
-                steps.append("otp_found")
-                # Step 3: Verify account
-                verified = await verify_account(verify_url)
-                if verified:
-                    steps.append("account_verified")
-                    logger.info("✅ Account verified")
-                else:
-                    steps.append("verify_failed")
-                return {
-                    "status": "success",
-                    "verify_url": verify_url,
-                    "steps_completed": steps,
-                }
-            
-            # OTP not found — account may still be usable (unverified but loginable)
-            steps.append("otp_not_found")
-            logger.warning("⚠️ OTP not found — account unverified but may still be usable")
-            return {
-                "status": "partial",
-                "verify_url": None,
-                "steps_completed": steps,
-                "error": "OTP email not found after 200s — account may be unverified but loginable",
-            }
-            
+                        steps.append("form_submitted")
+                    break
+        
+        return {
+            "status": "success" if "form_submitted" in steps else "partial",
+            "steps_completed": steps,
+            "page": page,
+            "playwright": playwright,
+            "browser": browser,
+        }
     except Exception as e:
         logger.error(f"Signup error: {e}")
+        if _own_playwright:
+            try: await _own_playwright.stop()
+            except: pass
         return {"status": "error", "steps_completed": steps, "error": str(e)}
 
 
-async def login_fireworks(email: str, password: str) -> Dict[str, Any]:
+async def login_fireworks(email: str, password: str, page=None, playwright=None, browser=None) -> Dict[str, Any]:
     """Login to Fireworks via Playwright + CUA onboarding.
-    Returns: {status, steps_completed, error}"""
+    Can reuse page/playwright/browser from signup or create its own.
+    Returns: {status, steps_completed, page, playwright, browser, error}"""
     import asyncio
     import json
     import subprocess
     import re as _re
     from playwright.async_api import async_playwright
 
+    _own_playwright = None
     steps = []
-    playwright = None
-    browser = None
-    page = None
     try:
-        playwright = await async_playwright().start()
-        browser = await playwright.chromium.launch(headless=False)
-        page = await browser.new_page()
+        if not playwright:
+            _own_playwright = await async_playwright().start()
+            playwright = _own_playwright
+        if not browser:
+            browser = await playwright.chromium.launch(headless=False)
+        if not page:
+            page = await browser.new_page()
 
         await page.goto("https://app.fireworks.ai/login")
         await asyncio.sleep(2)
@@ -280,15 +253,16 @@ async def login_fireworks(email: str, password: str) -> Dict[str, Any]:
             except Exception as e:
                 logger.warning(f"Fresh page navigate failed: {e}")
 
-        return {"status": "error", "steps_completed": steps, "error": f"Login failed: could not reach home/settings"}
+        return {"status": "error", "steps_completed": steps, "page": page, "playwright": playwright, "browser": browser,
+                "error": f"Login failed: could not reach home/settings"}
 
     except Exception as e:
         logger.error(f"Fireworks login error: {e}")
-        # Cleanup on error
-        if playwright:
-            try: await playwright.stop()
+        if _own_playwright:
+            try: await _own_playwright.stop()
             except: pass
-        return {"status": "error", "steps_completed": steps, "error": str(e)}
+        return {"status": "error", "steps_completed": steps, "page": page, "playwright": playwright, "browser": browser,
+                "error": str(e)}
 
 
 async def _fireworks_playwright_onboarding(page) -> None:

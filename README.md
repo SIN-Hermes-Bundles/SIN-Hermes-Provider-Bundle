@@ -15,8 +15,7 @@ OpenAI-compatible proxy with automatic key rotation on rate-limits.
 
 | Zugriff | Base URL |
 |---------|----------|
-| **Lokal (dieser Mac)** | `http://localhost:9998/inference/v1` |
-| **Remote (andere Macs / Clients)** | `https://sinatorpool-router.delqhi.com/inference/v1` |
+| **Standard (alle Clients)** | `https://sinatorpool-router.delqhi.com/inference/v1` |
 
 **Kein manuelles Pool-Wechseln mehr.** Der Router macht alles automatisch.
 
@@ -94,44 +93,7 @@ cd ~/dev/SINator-dashboard && ./start.sh
 
 ## Client Konfiguration
 
-### Lokal (auf Mac mit Backend)
-
 **OpenCode (`~/.config/opencode/opencode.json`):**
-```json
-{
-  "provider": {
-    "fireworks-ai": {
-      "options": {
-        "baseURL": "http://localhost:9998/inference/v1",
-        "apiKey": "<DEIN_API_KEY>"
-      }
-    }
-  }
-}
-```
-
-**Hermes (`~/.hermes/config.yaml`):**
-```yaml
-custom_providers:
-  - name: fireworks
-    base_url: http://localhost:9998/inference/v1
-    key_env: FIREWORKS_AI_API_KEY
-```
-
-**Python:**
-```python
-from openai import OpenAI
-client = OpenAI(
-    base_url="http://localhost:9998/inference/v1",
-    api_key="<DEIN_API_KEY>",
-)
-# List models (via Pool-Proxy /v1/models)
-models = client.models.list()
-```
-
-### Remote (andere Macs)
-
-**OpenCode:**
 ```json
 {
   "provider": {
@@ -145,6 +107,25 @@ models = client.models.list()
 }
 ```
 
+**Hermes (`~/.hermes/config.yaml`):**
+```yaml
+custom_providers:
+  - name: fireworks
+    base_url: https://sinatorpool-router.delqhi.com/inference/v1
+    key_env: FIREWORKS_AI_API_KEY
+```
+
+**Python:**
+```python
+from openai import OpenAI
+client = OpenAI(
+    base_url="https://sinatorpool-router.delqhi.com/inference/v1",
+    api_key="<DEIN_API_KEY>",
+)
+# List models (via Pool-Proxy /v1/models)
+models = client.models.list()
+```
+
 **curl:**
 ```bash
 curl https://sinatorpool-router.delqhi.com/inference/v1/models \
@@ -155,7 +136,7 @@ curl https://sinatorpool-router.delqhi.com/inference/v1/models \
 
 ## Was der Installer macht
 
-1. **Pool Router Config** — `~/.hermes/config.yaml` mit `localhost:9998`
+1. **Pool Router Config** — `~/.hermes/config.yaml` mit `sinatorpool-router.delqhi.com`
 2. **Pool Router Daemon** — `pool-router.py` via launchd `com.sinator.pool-router`
 3. **10 Proxy Daemons** — `com.sinator.pool-proxy-{8888..8897}` via launchd
 4. **412 Retry Patch** — `error_classifier.py`: 412 + "suspended" -> `billing` + retryable
