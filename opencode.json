@@ -1,14 +1,4 @@
 {
-  "$schema": "https://opencode.ai/config.json",
-  "permission": "allow",
-  "defaultAgent": "SIN-Zeus",
-  "skills": {
-    "paths": [
-      "~/.config/opencode/skills"
-    ]
-  },
-  "command": {},
-  "mcp": {},
   "provider": {
     "fireworks-ai": {
       "npm": "@ai-sdk/fireworks",
@@ -263,11 +253,5 @@
         "apiKey": "fw_DEIN_KEY"
       }
     }
-  },
-  "agent": {
-    "SIN-Zeus": {
-      "model": "fireworks-ai/deepseek-v4-pro"
-    }
-  },
-  "defaultModel": "fireworks-ai/deepseek-v4-pro"
+  }
 }
