@@ -142,5 +142,127 @@ curl -fsSL https://raw.githubusercontent.com/SIN-Hermes-Bundles/SIN-Hermes-Provi
 curl -fsSL https://raw.githubusercontent.com/SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle/main/config/fireworks-router.yaml -o ~/.hermes/config.yaml
 ```
 
+### OpenCode Reasoning-Configs fehlen nach One-Liner
+
+Falls der One-Liner keine `thinking` / `variants` in `~/.config/opencode/opencode.json` erstellt hat:
+
+```bash
+# Manuell Reasoning-Configs hinzufügen
+python3 << 'EOF'
+import json
+import os
+
+config_path = os.path.expanduser("~/.config/opencode/opencode.json")
+
+with open(config_path, 'r') as f:
+    cfg = json.load(f)
+
+# Fireworks Provider mit Reasoning
+provider = {
+    "npm": "@ai-sdk/fireworks",
+    "name": "Fireworks AI",
+    "models": {
+        "deepseek-v4-pro": {
+            "id": "fireworks/deepseek-v4-pro",
+            "name": "DeepSeek V4 Pro (SIN)",
+            "options": {
+                "thinking": {"type": "enabled", "budgetTokens": 64000}
+            },
+            "variants": {
+                "off": {"thinking": {"type": "disabled"}},
+                "low": {"thinking": {"type": "enabled", "budgetTokens": 4000}},
+                "medium": {"thinking": {"type": "enabled", "budgetTokens": 16000}},
+                "high": {"thinking": {"type": "enabled", "budgetTokens": 64000}},
+                "max": {"thinking": {"type": "enabled", "budgetTokens": 128000}}
+            },
+            "limit": {"context": 1048576, "output": 65536}
+        },
+        "glm-5p1": {
+            "id": "fireworks/glm-5p1",
+            "name": "GLM 5.1 (SIN)",
+            "options": {
+                "thinking": {"type": "enabled", "budgetTokens": 32000}
+            },
+            "variants": {
+                "off": {"thinking": {"type": "disabled"}},
+                "low": {"thinking": {"type": "enabled", "budgetTokens": 4000}},
+                "medium": {"thinking": {"type": "enabled", "budgetTokens": 16000}},
+                "high": {"thinking": {"type": "enabled", "budgetTokens": 32000}},
+                "max": {"thinking": {"type": "enabled", "budgetTokens": 64000}}
+            },
+            "limit": {"context": 202752, "output": 32768}
+        },
+        "kimi-k2p6": {
+            "id": "fireworks/kimi-k2p6",
+            "name": "Kimi K2.6 (SIN)",
+            "options": {
+                "thinking": {"type": "enabled", "budgetTokens": 32000}
+            },
+            "variants": {
+                "off": {"thinking": {"type": "disabled"}},
+                "low": {"thinking": {"type": "enabled", "budgetTokens": 4000}},
+                "medium": {"thinking": {"type": "enabled", "budgetTokens": 16000}},
+                "high": {"thinking": {"type": "enabled", "budgetTokens": 32000}},
+                "max": {"thinking": {"type": "enabled", "budgetTokens": 64000}}
+            },
+            "limit": {"context": 262144, "output": 32768},
+            "modalities": {"input": ["text", "image"], "output": ["text"]}
+        },
+        "qwen3p6-plus": {
+            "id": "accounts/fireworks/models/qwen3p6-plus",
+            "name": "Qwen3.6 Plus (SIN)",
+            "options": {
+                "thinking": {"type": "enabled", "budgetTokens": 32000}
+            },
+            "variants": {
+                "off": {"thinking": {"type": "disabled"}},
+                "low": {"thinking": {"type": "enabled", "budgetTokens": 4000}},
+                "medium": {"thinking": {"type": "enabled", "budgetTokens": 16000}},
+                "high": {"thinking": {"type": "enabled", "budgetTokens": 32000}},
+                "max": {"thinking": {"type": "enabled", "budgetTokens": 64000}}
+            },
+            "limit": {"context": 131072, "output": 32768},
+            "modalities": {"input": ["text", "image"], "output": ["text"]}
+        },
+        "minimax-m2p7": {
+            "id": "fireworks/minimax-m2p7",
+            "name": "MiniMax M2.7 (SIN)",
+            "options": {
+                "thinking": {"type": "enabled", "budgetTokens": 32000}
+            },
+            "variants": {
+                "off": {"thinking": {"type": "disabled"}},
+                "low": {"thinking": {"type": "enabled", "budgetTokens": 4000}},
+                "medium": {"thinking": {"type": "enabled", "budgetTokens": 16000}},
+                "high": {"thinking": {"type": "enabled", "budgetTokens": 32000}},
+                "max": {"thinking": {"type": "enabled", "budgetTokens": 64000}}
+            },
+            "limit": {"context": 196608, "output": 32768}
+        }
+    },
+    "options": {
+        "baseURL": "https://sinatorpool-router.delqhi.com/inference/v1",
+        "apiKey": "<DEIN_API_KEY>"
+    }
+}
+
+cfg.setdefault("provider", {})["fireworks-ai"] = provider
+
+with open(config_path, 'w') as f:
+    json.dump(cfg, f, indent=2)
+    f.write('\n')
+
+print("✅ Reasoning-Configs hinzugefügt!")
+print("Prüfe: cat ~/.config/opencode/opencode.json | grep -A 3 '\"thinking\"'")
+EOF
+```
+
+Verifizieren:
+```bash
+# Prüfen ob Reasoning-Configs da sind
+cat ~/.config/opencode/opencode.json | grep -A 3 '"thinking"'
+# Sollte "type": "enabled" anzeigen
+```
+
 ---
 *Last updated: 2026-05-30*
