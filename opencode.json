@@ -252,6 +252,335 @@
             "context": 196608,
             "output": 32768
           }
+        },
+        "glm-5p1-fast": {
+          "id": "accounts/fireworks/routers/glm-5p1-fast",
+          "name": "GLM 5.1 Fast (SIN)",
+          "options": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 32000
+            },
+            "temperature": 0
+          },
+          "variants": {
+            "off": {
+              "thinking": {
+                "type": "disabled"
+              },
+              "temperature": 0
+            },
+            "low": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 4000
+              },
+              "temperature": 0
+            },
+            "medium": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 16000
+              },
+              "temperature": 0
+            },
+            "high": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 32000
+              },
+              "temperature": 0
+            },
+            "max": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 64000
+              },
+              "temperature": 0
+            }
+          },
+          "limit": {
+            "context": 202752,
+            "output": 32768
+          }
+        },
+        "kimi-k2p6-turbo": {
+          "id": "accounts/fireworks/routers/kimi-k2p6-turbo",
+          "name": "Kimi K2.6 Turbo (SIN)",
+          "options": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 32000
+            },
+            "temperature": 0
+          },
+          "variants": {
+            "off": {
+              "thinking": {
+                "type": "disabled"
+              },
+              "temperature": 0
+            },
+            "low": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 4000
+              },
+              "temperature": 0
+            },
+            "medium": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 16000
+              },
+              "temperature": 0
+            },
+            "high": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 32000
+              },
+              "temperature": 0
+            },
+            "max": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 64000
+              },
+              "temperature": 0
+            }
+          },
+          "limit": {
+            "context": 262144,
+            "output": 32768
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        },
+        "deepseek-v4-flash": {
+          "id": "accounts/fireworks/models/deepseek-v4-flash",
+          "name": "DeepSeek V4 Flash (SIN)",
+          "options": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 32000
+            },
+            "temperature": 0
+          },
+          "variants": {
+            "off": {
+              "thinking": {
+                "type": "disabled"
+              },
+              "temperature": 0
+            },
+            "low": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 4000
+              },
+              "temperature": 0
+            },
+            "medium": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 16000
+              },
+              "temperature": 0
+            },
+            "high": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 32000
+              },
+              "temperature": 0
+            },
+            "max": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 64000
+              },
+              "temperature": 0
+            }
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          }
+        },
+        "gpt-oss-120b": {
+          "id": "accounts/fireworks/models/gpt-oss-120b",
+          "name": "GPT-OSS 120B (SIN)",
+          "options": {
+            "temperature": 0
+          },
+          "variants": {
+            "off": {
+              "temperature": 0
+            },
+            "low": {
+              "temperature": 0
+            },
+            "medium": {
+              "temperature": 0
+            },
+            "high": {
+              "temperature": 0
+            },
+            "max": {
+              "temperature": 0
+            }
+          },
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "gpt-oss-20b": {
+          "id": "accounts/fireworks/models/gpt-oss-20b",
+          "name": "GPT-OSS 20B (SIN)",
+          "options": {
+            "temperature": 0
+          },
+          "variants": {
+            "off": {
+              "temperature": 0
+            },
+            "low": {
+              "temperature": 0
+            },
+            "medium": {
+              "temperature": 0
+            },
+            "high": {
+              "temperature": 0
+            },
+            "max": {
+              "temperature": 0
+            }
+          },
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "kimi-k2p5": {
+          "id": "accounts/fireworks/models/kimi-k2p5",
+          "name": "Kimi K2.5 (SIN)",
+          "options": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 32000
+            },
+            "temperature": 0
+          },
+          "variants": {
+            "off": {
+              "thinking": {
+                "type": "disabled"
+              },
+              "temperature": 0
+            },
+            "low": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 4000
+              },
+              "temperature": 0
+            },
+            "medium": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 16000
+              },
+              "temperature": 0
+            },
+            "high": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 32000
+              },
+              "temperature": 0
+            },
+            "max": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 64000
+              },
+              "temperature": 0
+            }
+          },
+          "limit": {
+            "context": 262144,
+            "output": 32768
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        },
+        "minimax-m2p5": {
+          "id": "accounts/fireworks/models/minimax-m2p5",
+          "name": "MiniMax M2.5 (SIN)",
+          "options": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 32000
+            },
+            "temperature": 0
+          },
+          "variants": {
+            "off": {
+              "thinking": {
+                "type": "disabled"
+              },
+              "temperature": 0
+            },
+            "low": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 4000
+              },
+              "temperature": 0
+            },
+            "medium": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 16000
+              },
+              "temperature": 0
+            },
+            "high": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 32000
+              },
+              "temperature": 0
+            },
+            "max": {
+              "thinking": {
+                "type": "enabled",
+                "budgetTokens": 64000
+              },
+              "temperature": 0
+            }
+          },
+          "limit": {
+            "context": 196608,
+            "output": 32768
+          }
         }
       },
       "options": {
