@@ -140,7 +140,16 @@ Fix: CDP `Runtime.evaluate` verwenden, nicht `page.goto()`
 
 ---
 
-## 5. Co-Docs Status ✅ (18/18 files — 100% coverage)
+## 5. Dead Code (2026-05-30 — moved to deprecated/)
+
+| Datei | Grund |
+|-------|-------|
+| `deprecated/billing_tracker.py` | 0 Callers, nie genutzt — Credits werden nie getracked |
+| `deprecated/sinator-cli.py` | 0 Callers, nie genutzt — Funktionalität in API + Dashboard |
+
+---
+
+## 6. Co-Docs Status ✅ (25/25 files — 100% coverage)
 
 | Datei | Doc.md | Status |
 |-------|--------|--------|
