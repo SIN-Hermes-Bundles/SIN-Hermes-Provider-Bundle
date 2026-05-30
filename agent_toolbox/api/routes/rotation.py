@@ -17,25 +17,7 @@ ROTATE_SCRIPT = Path(__file__).parent.parent.parent.parent / "tools" / "rotate.p
 
 @router.post("/full", response_model=RotationResponse)
 async def full_rotation(request: RotationRequest):
-    """
-    Rotation in NEUEM Chrome-Fenster (gleiches Profil 901).
-    Dashboard bleibt in Fenster 1, Rotation läuft in Fenster 2.
-    """
-    # Neues Chrome-Fenster öffnen (gleiches Profil — nebeneinander sichtbar)
     t0 = time.time()
-    try:
-        subprocess.run([
-            "osascript", "-e",
-            'tell application "Google Chrome"\n'
-            '    set bounds of window 1 to {0, 25, 960, 900}\n'
-            '    make new window\n'
-            '    set bounds of window 1 to {960, 25, 1920, 900}\n'
-            '    activate\n'
-            'end tell'
-        ], capture_output=True, timeout=5)
-        await asyncio.sleep(2)
-    except Exception as e:
-        logger.warning(f"AppleScript window: {e}")
 
     from agent_toolbox.core.config_manager import get_config
     cfg = get_config()
@@ -49,7 +31,7 @@ async def full_rotation(request: RotationRequest):
     if request.new_alias_name:
         cmd.append(request.new_alias_name)
 
-    logger.info(f"Running rotate.py --cdp-port 9222")
+    logger.info(f"Running rotate.py via subprocess")
 
     try:
         proc = await asyncio.create_subprocess_exec(

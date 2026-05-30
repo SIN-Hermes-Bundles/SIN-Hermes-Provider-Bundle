@@ -3736,10 +3736,10 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780121371.922273,
-    "leased_to": "proxy-1780008199",
-    "lease_id": "19bb254139d4",
-    "leased_at": 1780119571.922273,
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null,
     "suspended": true,
     "suspended_at": "2026-05-30T07:39:32Z",
     "suspended_reason": "suspended"
@@ -3755,10 +3755,13 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780121371.9667351,
-    "leased_to": "proxy-1780008199-backup",
-    "lease_id": "2a8c676f467b",
-    "leased_at": 1780119571.9667351
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T08:36:43Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "6a17211b-ae59-48ab-9fbe-e383e9d67bfe",
@@ -3771,10 +3774,13 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780121372.423249,
-    "leased_to": "proxy-1780008199",
-    "lease_id": "7904d892f36f",
-    "leased_at": 1780119572.423249
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T11:50:53Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "f7da3771-1647-4633-9b80-de15493d69f4",
@@ -3790,7 +3796,10 @@
     "leased_until": null,
     "leased_to": null,
     "lease_id": null,
-    "leased_at": null
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T11:50:23Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "60cc554a-9b00-4301-a7ab-ed5d22f214dd",
@@ -3803,10 +3812,13 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780122273.339212,
-    "leased_to": "proxy-1780008198-backup-backup",
-    "lease_id": "dc1c94d0e2fc",
-    "leased_at": 1780120473.339212
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T09:00:20Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "7f464593-6637-4f2e-ad22-a5999a4315e5",
@@ -3819,10 +3831,13 @@
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
     "credits_checked_at": null,
-    "leased_until": 1780122629.638653,
-    "leased_to": "proxy-1780008198-backup-backup",
-    "lease_id": "34dc52360896",
-    "leased_at": 1780120829.638653
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T12:54:38Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "88be419f-e3e8-4da9-aadd-d8385d21a018",
@@ -3838,7 +3853,10 @@
     "leased_until": null,
     "leased_to": null,
     "lease_id": null,
-    "leased_at": null
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T14:12:52Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "bc908e00-a9dd-4f9e-998d-9f5671bf1f88",
@@ -3854,7 +3872,10 @@
     "leased_until": null,
     "leased_to": null,
     "lease_id": null,
-    "leased_at": null
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T15:50:50Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "e2a6736e-1842-444e-b58c-dbf0d339b5b5",
@@ -3870,7 +3891,10 @@
     "leased_until": null,
     "leased_to": null,
     "lease_id": null,
-    "leased_at": null
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T14:43:50Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "bb12e4ca-1321-48a6-a804-63aeb0bd4728",
@@ -3886,7 +3910,10 @@
     "leased_until": null,
     "leased_to": null,
     "lease_id": null,
-    "leased_at": null
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T11:50:47Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "8c6747c4-bef9-477f-a6e1-d2cfafd83e85",
@@ -3902,7 +3929,10 @@
     "leased_until": null,
     "leased_to": null,
     "lease_id": null,
-    "leased_at": null
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T11:51:26Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "97c1715a-6fb6-4004-95cd-59ae01c992da",
@@ -3918,7 +3948,10 @@
     "leased_until": null,
     "leased_to": null,
     "lease_id": null,
-    "leased_at": null
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T13:22:41Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "7e92eeac-a7cc-4e08-959c-10d0eef2f1de",
@@ -3934,7 +3967,10 @@
     "leased_until": null,
     "leased_to": null,
     "lease_id": null,
-    "leased_at": null
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T11:56:54Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "a4a1a231-de9e-4c33-8439-197c950afcb9",
@@ -3950,7 +3986,10 @@
     "leased_until": null,
     "leased_to": null,
     "lease_id": null,
-    "leased_at": null
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T16:22:37Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "5bc0f32b-f429-438f-86eb-d4cfdd3231f3",
@@ -3978,7 +4017,10 @@
     "leased_until": null,
     "leased_to": null,
     "lease_id": null,
-    "leased_at": null
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T17:31:53Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "a294e3f9-ab08-4105-938c-18b99b78c7b6",
@@ -3990,7 +4032,14 @@
     "used_at": null,
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
-    "credits_checked_at": null
+    "credits_checked_at": null,
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T18:00:12Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "e5db517a-225c-461b-b9c5-790c3c583eda",
@@ -4002,7 +4051,14 @@
     "used_at": null,
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
-    "credits_checked_at": null
+    "credits_checked_at": null,
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T18:34:26Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "627bf9c2-539c-41af-b39f-e9fbdefcbbf9",
@@ -4014,7 +4070,14 @@
     "used_at": null,
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
-    "credits_checked_at": null
+    "credits_checked_at": null,
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T18:34:30Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "55f21d43-9244-4e9c-90f5-1aebd3e75b73",
@@ -4026,7 +4089,14 @@
     "used_at": null,
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
-    "credits_checked_at": null
+    "credits_checked_at": null,
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T15:49:33Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "e805bb74-6dad-4a32-b74b-8563c1c6ba7b",
@@ -4038,7 +4108,14 @@
     "used_at": null,
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
-    "credits_checked_at": null
+    "credits_checked_at": null,
+    "leased_until": null,
+    "leased_to": null,
+    "lease_id": null,
+    "leased_at": null,
+    "suspended": true,
+    "suspended_at": "2026-05-30T20:14:55Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "96d2d993-edd7-488d-afca-2086b80d3a44",
@@ -4050,7 +4127,14 @@
     "used_at": null,
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
-    "credits_checked_at": null
+    "credits_checked_at": null,
+    "leased_until": 1780166677.0916202,
+    "leased_to": "proxy-1780008199",
+    "lease_id": "0fe7f0c7cf47",
+    "leased_at": 1780164877.0916202,
+    "suspended": true,
+    "suspended_at": "2026-05-30T20:25:17Z",
+    "suspended_reason": "suspended"
   },
   {
     "id": "b1218483-8725-40cb-aeac-193440de4a80",
@@ -4062,6 +4146,42 @@
     "used_at": null,
     "credits_initial": 6.0,
     "credits_remaining": 6.0,
-    "credits_checked_at": null
+    "credits_checked_at": null,
+    "leased_until": 1780166677.22654,
+    "leased_to": "proxy-1780008199",
+    "lease_id": "25598630865a",
+    "leased_at": 1780164877.22654
+  },
+  {
+    "id": "a1df79d0-41c1-4338-9287-6147eea71320",
+    "api_key": "STORED_IN_KEYCHAIN",
+    "alias_email": "vortex-shark-399@gmx.de",
+    "key_name": "vortex",
+    "created_at": "2026-05-30T09:05:12Z",
+    "used": false,
+    "used_at": null,
+    "credits_initial": 6.0,
+    "credits_remaining": 6.0,
+    "credits_checked_at": null,
+    "leased_until": 1780166677.435296,
+    "leased_to": "proxy-1780008199",
+    "lease_id": "e7e992f02e1c",
+    "leased_at": 1780164877.435296
+  },
+  {
+    "id": "2b3a0593-fa70-40f4-a089-23a8dd6547c2",
+    "api_key": "STORED_IN_KEYCHAIN",
+    "alias_email": "silver-cobra-672@gmx.de",
+    "key_name": "silver",
+    "created_at": "2026-05-30T09:08:09Z",
+    "used": false,
+    "used_at": null,
+    "credits_initial": 6.0,
+    "credits_remaining": 6.0,
+    "credits_checked_at": null,
+    "leased_until": 1780166767.115536,
+    "leased_to": "proxy-1780008198-backup",
+    "lease_id": "ca7a4496f285",
+    "leased_at": 1780164967.115536
   }
 ]
