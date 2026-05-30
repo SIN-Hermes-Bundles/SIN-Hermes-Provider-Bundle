@@ -57,7 +57,7 @@ Kein Hermes-Restart nötig. Kein Config-Edit nötig. Nur `POOLS`-Liste erweitern
 ```yaml
 custom_providers:
 - name: fireworks
-  base_url: http://localhost:9998/inference/v1
+  base_url: https://sinatorpool-router.delqhi.com/inference/v1
   key_env: FIREWORKS_AI_API_KEY
 ```
 
@@ -145,7 +145,7 @@ Wenn du lieber direkt einen lokalen Proxy ansprechen willst (z.B. weil Router ei
 # ~/.hermes/config.yaml editieren:
 #   base_url: http://localhost:8888/inference/v1
 # Dann Router stoppen (falls läuft):
-pkill -f pool-router.py
+# pkill -f pool-router.py
 ```
 
-Oder `config/fireworks-pool1.yaml` als Vorlage nutzen.
+Oder `config/fireworks-pool1.yaml` als Vorlage nutzen (diese zeigt jetzt die Remote-URL als Standard).

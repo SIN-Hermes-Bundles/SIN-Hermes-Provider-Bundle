@@ -12,7 +12,7 @@ The Provider Bundle installs the Pool Router, patches, and configuration for the
 # Fireworks Router Config
 provider:
   custom:fireworks:
-    base_url: http://localhost:9998/inference/v1
+    base_url: https://sinatorpool-router.delqhi.com/inference/v1
     api_key: ${FIREWORKS_AI_API_KEY}
 
 # Pool Router
@@ -140,10 +140,10 @@ python3 ~/.hermes/scripts/pool-router.py add-proxy $PROXY_PORT
 ### Health Checks
 
 ```bash
-# Manual health check
-curl http://localhost:9998/health
+# Manual health check (via public endpoint)
+curl https://sinatorpool-router.delqhi.com/inference/v1/models
 
-# Check specific proxy
+# Check specific proxy (local only)
 curl http://localhost:8888/health
 ```
 

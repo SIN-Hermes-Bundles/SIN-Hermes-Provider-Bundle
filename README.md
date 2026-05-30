@@ -96,12 +96,12 @@ cd ~/dev/SINator-dashboard && ./start.sh
 ### Quick Install (One-Liner)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/SIN-Rotator/SINator-FireworksAI/main/opencode-config-install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle/main/opencode-config-install.sh | bash
 ```
 
 Mit API Key:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/SIN-Rotator/SINator-FireworksAI/main/opencode-config-install.sh | bash -s -- --api-key fw_xxx
+curl -fsSL https://raw.githubusercontent.com/SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle/main/opencode-config-install.sh | bash -s -- --api-key fw_xxx
 ```
 
 ### Manuelle Konfiguration
