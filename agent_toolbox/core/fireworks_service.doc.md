@@ -18,6 +18,24 @@ Fireworks AI Account-Management: Signup, Login, Onboarding, API Key Erstellung. 
 ## Wichtige Entscheidungen
 
 - **CUA NUR für Names (AXTextField):** `get_window_state` zeigt Chrome UI (Tabs, Bookmarks), NICHT Web-Content. Nur AXTextField-Elemente sind im Chrome-AX-Tree sichtbar. Checkbox/Button existieren dort nicht → müssen via Playwright geklickt werden.
-- **Checkbox-Strategie:** 1) `input[type="checkbox"]` mit aria-label "agree", 2) `label` mit textContent "i agree", 3) Fallback `label:has-text("Terms")` (matcht sonst Terms-of-Service-Links!).
-- **Onboarding-Pfad:** Immer Playwright für Checkbox/Continue/Submit. CUA nur für type_text (CGEvent-Tastendrücke) auf React-Textfelder, die Playwrights `type()` nicht verarbeitet.
-- **Erkannt (2026-05-30):** CUA `get_window_state` findet Chrome-AX-Tree (Tabs, Bookmarks, Toolbar). Web-Content (Canvas/Shadow-DOM) ist nicht sichtbar.
+- **Checkbox-Strategie (Radix UI):** Terms-Checkbox ist ein `<button role="checkbox">`, NICHT `<input type="checkbox">`. Nur native `el.click()` auf dem Button triggert den React/Radix State-Change und rendert das SVG-Icon. Playwright `btn.click()`, `btn.click(force=True)`, und `dispatchEvent` toggeln den State entweder gar nicht oder sofort zurück. Use-Cases-Checkboxes (Step 2) sind echte `<input type="checkbox">` — dort funktioniert `el.click()` nativ.
+- **Fireworks Session vor Signup löschen (CDP-Level):** `ctx.clear_cookies()` + `ctx.add_cookies(non_fw_cookies)` + `localStorage.clear()` vor `/signup` goto. Löscht auch `httpOnly`/`Secure` Cookies. Fallback: force navigate `/logout` URLs.
+- **Onboarding komplett via Playwright** (CUA kann nur AXTextField — Chrome UI, nicht Web-Content)
+- **Chrome Password Save Dialog:** Vor Onboarding dismissen ("Nie"/"Never" Button finden und klicken)
+
+## Onboarding Flow
+
+1. **Name-Felder** (firstName/lastName) — Playwright `type()` mit delay
+2. **Terms-Checkbox** — `button[role="checkbox"]` + native `el.click()` (Radix UI)
+3. **Continue/Next** — Button mit Text-Matching
+4. **Use-Cases** — `input[type="checkbox"]` mit `aria-label` Matching (Prototype, Flexible capacity, Conversational, Search)
+5. **Submit/Get $5** — Button mit Text-Matching
+6. **Redirect-Check** — 10×2s Poll auf `home`/`account`/`settings` in URL
+7. **Force-Navigate** — Falls kein Redirect: direkt zu API-Keys Seite
+
+## API Key Erstellung
+
+- `_generate_and_poll_key()` — Generate-Button klicken, 3 Retries mit Reload
+- Polling auf Key-Textarea oder Input-Feld
+- Missing-Name Modal: Name eintragen + Retry
+- Ergebnis: `{api_key: "fw_...", name: "..."}`

@@ -35,6 +35,21 @@ async def signup_fireworks(email: str, password: str) -> Dict[str, Any]:
             browser = await p.chromium.connect_over_cdp("http://127.0.0.1:9222")
             page = await browser.contexts[0].new_page()
             
+            # Clear Fireworks session (CDP-Level für httpOnly-Cookies!)
+            await page.goto("https://app.fireworks.ai/logout", timeout=10000, wait_until='domcontentloaded')
+            await asyncio.sleep(1)
+            await page.goto("https://app.fireworks.ai", wait_until='domcontentloaded')
+            await asyncio.sleep(1)
+            ctx = browser.contexts[0]
+            all_cookies = await ctx.cookies()
+            fw_cookies = [c for c in all_cookies if 'fireworks' in (c.get('domain') or '')]
+            non_fw_cookies = [c for c in all_cookies if 'fireworks' not in (c.get('domain') or '')]
+            await ctx.clear_cookies()
+            if non_fw_cookies:
+                await ctx.add_cookies(non_fw_cookies)
+            await page.evaluate("() => { localStorage.clear(); sessionStorage.clear(); }")
+            steps.append("fw_session_cleared")
+
             # Step 1: Signup form
             await page.goto("https://app.fireworks.ai/signup")
             await asyncio.sleep(2)
@@ -272,8 +287,18 @@ async def login_fireworks(email: str, password: str) -> Dict[str, Any]:
 
 
 async def _fireworks_playwright_onboarding(page) -> None:
-    """Playwright-based onboarding fallback (type() with delay for React, click() for checkboxes)."""
+    """Playwright-based onboarding fallback (type() with delay for React, check() for checkboxes)."""
     import asyncio
+    
+    # Dismiss Chrome password save dialog if present
+    for btn in await page.locator('button').all():
+        txt = (await btn.text_content() or '').strip().lower()
+        if txt in ['nie', 'never', 'not now', 'no thanks']:
+            try:
+                await btn.click(force=True); await asyncio.sleep(0.5)
+            except Exception:
+                pass
+            break
     
     fn = page.locator('input[name="firstName"]').first
     if await fn.count() == 0:
@@ -289,52 +314,20 @@ async def _fireworks_playwright_onboarding(page) -> None:
         await ln.click(); await asyncio.sleep(0.2)
         await ln.type("Cheetah", delay=50); await asyncio.sleep(0.5)
     
+    # Check Terms checkbox — Radix UI: button[role="checkbox"], NOT input[type="checkbox"]
+    # The checkbox is a <button> with role="checkbox", data-state="unchecked", and an SVG icon inside.
+    # Only native el.click() works (Playwright click() and dispatchEvent don't trigger Radix state change).
     terms_clicked = False
-    # Suche input[type="checkbox"] direkt — NIEMALS label klicken (enthält Terms-Link!)
-    all_cbs = await page.locator('input[type="checkbox"]').all()
-    # 1. Try checkbox input with aria-label containing "agree"
-    for cb in all_cbs:
-        lbl = (await cb.get_attribute('aria-label') or '').lower()
-        n_id = (await cb.get_attribute('id') or '').lower()
-        if 'agree' in lbl or 'terms' in n_id:
-            await cb.click(force=True); await asyncio.sleep(0.5)
+    for btn in await page.locator('button[role="checkbox"]').all():
+        parent = await btn.evaluate('el => el.parentElement?.textContent?.toLowerCase() || ""')
+        if 'i agree' in parent and 'terms' in parent:
+            await btn.evaluate('el => el.click()')
+            await asyncio.sleep(1.5)
             terms_clicked = True
             break
+    
     if not terms_clicked:
-        # 2. Find checkbox via Label mit "I agree" — klicke INPUT, nicht label!
-        for lbl in await page.locator('label').all():
-            txt = (await lbl.text_content() or '').lower()
-            if 'i agree' in txt:
-                cb = lbl.locator('input[type="checkbox"]')
-                if await cb.count() > 0:
-                    await cb.first.click(force=True)
-                else:
-                    for_attr = await lbl.get_attribute('for')
-                    if for_attr:
-                        cb = page.locator(f'input[id="{for_attr}"]')
-                        if await cb.count() > 0:
-                            await cb.first.click(force=True)
-                        else:
-                            continue
-                    else:
-                        continue
-                await asyncio.sleep(0.5)
-                terms_clicked = True
-                break
-    if not terms_clicked:
-        # 3. Fallback: checkbox with any id — suche per JS
-        logger.warning("No checkbox with 'agree' or 'I agree' found — trying JS dispatch")
-        await page.evaluate("""
-            () => {
-                const cb = document.querySelector('input[type="checkbox"]');
-                if (cb) {
-                    cb.checked = true;
-                    cb.dispatchEvent(new Event('change', {bubbles: true}));
-                    cb.dispatchEvent(new Event('input', {bubbles: true}));
-                }
-            }
-        """)
-        await asyncio.sleep(0.5)
+        logger.warning("Could not find/check Terms checkbox")
     
     for btn in await page.locator('button').all():
         txt = (await btn.text_content() or '').strip()

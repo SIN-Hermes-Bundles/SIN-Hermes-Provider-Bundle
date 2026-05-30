@@ -26,16 +26,20 @@ python tools/rotate.py
 - Checkbox/Continue/Submit/Use-Cases komplett via Playwright `_fireworks_playwright_onboarding()`
 - Bei fehlendem CUA-Window: Playwright type() als Fallback für Names
 
-### _fireworks_playwright_onboarding() — Checkbox-Fix
-**Problem:** `label:has-text("Terms")` matched den "Terms of Service" Link, nicht die "I agree" Checkbox.
-**Fix:** 3-Stufen-Strategie: 1) `input[type="checkbox"]` mit aria-label "agree", 2) `label` mit textContent "i agree", 3) Fallback `label:has-text("Terms")`
+### _fireworks_playwright_onboarding() — Checkbox-Fix (Radix UI)
+**Problem:** Terms-Checkbox ist ein Radix UI `<button role="checkbox">`, NICHT `<input type="checkbox">`. `label:has-text("Terms")` matched den "Terms of Service" Link. Playwright `click()` und `dispatchEvent` toggeln den State entweder gar nicht oder sofort zurück.
+**Fix:** `button[role="checkbox"]` via `page.locator()` finden, dann native `el.click()` ausführen (`await btn.evaluate('el => el.click()')`). Das triggert den React/Radix State-Change und rendert das SVG-Icon. Chrome Password Save Dialog vorher dismissen.
 
 ### read_otp() — Playwright locator statt JS Walk
 **Problem:** `document.querySelectorAll()` findet NUR 74 light-DOM Elemente. GMX `list-mail-item` sind in >2 Ebenen Shadow DOM, unsichtbar für native DOM-APIs.
 **Fix:** `webmailer_frame.locator('list-mail-item.list-mail-item--unread').filter(has_text='fireworks').first.click()` — Playwright locator durchdringt Shadow Boundaries nativ.
 
 ### gmx_service.py — Playwright-native (1034 Zeilen)
+
 **Aktualisiert:**
+- `_find_alias_row()` — Nutzt jetzt `div.table_body-row` statt `document.body.innerText` — findet Aliases zuverlässiger in tabellarischer Struktur
+- `_delete_alias()` — `div.table_body-row:has-text()` für Row-Selektion, Dialog-Handler vor Click, JS dispatchEvent Fallback, DOM-Dialog Bestätigung (Löschen/OK/Bestätigen/Ja/Entfernen), Verifikation via table rows statt body.innerText
+- `_verify_alias()` — Prüft `div.table_body-row` statt `document.body.innerText` für zuverlässigere Präsenz/Absenz-Prüfung
 - `read_otp()` Z.860-884: JS Walk durch Playwright locator ersetzt (findet 42 list-mail-items vs. 0 via querySelectorAll)
 - `open_gmx_email()` Z.951-973: gleicher Fix
 - `open_gmx_email()` Z.977: `result`→`clicked` (stale Variable)

@@ -452,7 +452,7 @@ class GmxService:
         return None
 
     async def _find_alias_row(self, page: Page) -> Optional[str]:
-        """Find a non-opensin alias email in the allEmailAddresses iframe."""
+        """Find a non-opensin alias email in the allEmailAddresses table."""
         logger.info("[_find_alias_row] Searching for alias")
         try:
             frame = await self._get_all_email_frame(page)
@@ -460,16 +460,16 @@ class GmxService:
                 logger.warning("allEmailAddresses iframe not found")
                 return None
             
-            text = await frame.evaluate("() => document.body.innerText")
-            lines = text.split('\n')
-            for line in lines:
-                line = line.strip()
-                if '@gmx.' in line and 'delqhi@gmx.de' not in line and 'opensin@gmx.de' not in line:
-                    parts = line.split()
-                    for part in parts:
-                        if '@gmx.' in part and part != 'delqhi@gmx.de' and part != 'opensin@gmx.de':
-                            logger.info(f"Found alias: {part}")
-                            return part
+            rows = frame.locator('div.table_body-row')
+            count = await rows.count()
+            for i in range(count):
+                text = await rows.nth(i).inner_text()
+                for line in text.split('\n'):
+                    line = line.strip()
+                    if '@gmx.' in line and 'delqhi' not in line and 'opensin' not in line:
+                        clean = line.strip('()')
+                        logger.info(f"Found alias: {clean}")
+                        return clean
         except Exception as e:
             logger.warning(f"Error finding alias: {e}")
         return None
@@ -483,41 +483,74 @@ class GmxService:
                 logger.warning("allEmailAddresses iframe not found for delete")
                 return False
             
-            # Find the row containing the alias email
-            row = frame.locator(f'text={alias_email}').first
-            if not await row.is_visible(timeout=3000):
-                logger.warning(f"Alias row not visible: {alias_email}")
+            # Find the row containing the alias email (in div.table_body-row)
+            row = frame.locator(f'div.table_body-row:has-text("{alias_email}")').first
+            if await row.count() == 0:
+                clean = alias_email.strip('()')
+                row = frame.locator(f'div.table_body-row:has-text("{clean}")').first
+            if await row.count() == 0:
+                logger.warning(f"Alias row not found: {alias_email}")
                 return False
+            # Wait for row to be visible (may need reflow after navigation)
+            await row.wait_for(state="visible", timeout=5000)
 
             # Hover to reveal delete button
             await row.hover()
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
 
-            # Look for delete button (title or aria-label containing "lösch")
-            delete_btn = frame.locator('[title*="lösch" i], [aria-label*="lösch" i]').first
-            if not await delete_btn.is_visible(timeout=2000):
-                # Try any button near the alias
-                delete_btn = frame.locator('button').filter(has=frame.locator('svg, i, img')).first
+            # Add dialog handler BEFORE click (GMX kann window.confirm() oder DOM-Dialog verwenden)
+            async def handle_dialog(dialog):
+                logger.info(f"Dialog erschienen: {dialog.type}")
+                await dialog.accept()
+            page.on("dialog", handle_dialog)
 
+            # Try: Click delete icon via Playwright
+            delete_btn = frame.locator('[title*="lösch" i]').first
+            clicked = False
             if await delete_btn.is_visible(timeout=2000):
-                logger.info("Clicking delete button")
-                await delete_btn.click(force=True)
+                logger.info("Deleting via Playwright click")
+                await delete_btn.click(force=True, timeout=5000)
+                clicked = True
+            else:
+                # Fallback: JS dispatchEvent
+                logger.info("Deleting via JS dispatchEvent")
+                await frame.evaluate("""
+                    () => {
+                        const el = document.querySelector('[title="E-Mail-Adresse löschen"]');
+                        if (el) el.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}));
+                    }
+                """)
+                clicked = True
+            
+            if clicked:
                 await asyncio.sleep(3)
 
-                # Confirm dialog
-                try:
-                    ok_btn = frame.locator('button:has-text("OK")').first
-                    if await ok_btn.is_visible(timeout=2000):
-                        await ok_btn.click()
-                        await asyncio.sleep(2)
-                except:
-                    pass
+                # Prüfe auf DOM-Dialog (button: "OK" / "Löschen" / "Bestätigen")
+                for dialog_text in ["Löschen", "OK", "Bestätigen", "Ja", "Entfernen"]:
+                    try:
+                        confirm_btn = frame.get_by_role("button", name=dialog_text).first
+                        if await confirm_btn.is_visible(timeout=1000):
+                            await confirm_btn.click()
+                            logger.info(f"Confirmed deletion via: {dialog_text}")
+                            await asyncio.sleep(2)
+                            break
+                    except:
+                        pass
 
-                # Verify deletion
+                # Verify deletion via table rows (nicht document.body.innerText!)
                 for _ in range(10):
-                    text = await frame.evaluate("() => document.body.innerText")
-                    if alias_email not in text:
+                    rows = frame.locator('div.table_body-row')
+                    found = False
+                    for i in range(await rows.count()):
+                        text = await rows.nth(i).inner_text()
+                        if alias_email in text:
+                            found = True
+                            break
+                    if not found:
                         logger.info("Alias deleted successfully")
+                        # Cleanup dialog handler
+                        try: page.remove_listener("dialog", handle_dialog)
+                        except: pass
                         return True
                     await asyncio.sleep(1)
 
@@ -591,30 +624,25 @@ class GmxService:
             return False
 
     async def _verify_alias(self, page: Page, alias_email: str, present: bool = True, max_wait: float = 12.0) -> bool:
-        """Verify alias is present/absent in the allEmailAddresses page."""
+        """Verify alias is present/absent in the allEmailAddresses table."""
         logger.info(f"[_verify_alias] Checking {alias_email} present={present}")
         try:
             deadline = time.time() + max_wait
             while time.time() < deadline:
-                # Check page URL first (top frame approach)
-                if "allEmailAddresses" in page.url and "settings" in page.url:
-                    text = await page.evaluate("() => document.body.innerText")
-                    found = alias_email in text
+                frame = await self._get_all_email_frame(page)
+                if frame:
+                    rows = frame.locator('div.table_body-row')
+                    count = await rows.count()
+                    found = False
+                    for i in range(count):
+                        text = await rows.nth(i).inner_text()
+                        if alias_email in text:
+                            found = True
+                            break
                     if present and found:
                         return True
                     if not present and not found:
                         return True
-                else:
-                    # Search across all frames (fallback)
-                    for frame in page.frames:
-                        if "allEmailAddresses" in frame.url and "settings" in frame.url:
-                            text = await frame.evaluate("() => document.body.innerText")
-                            found = alias_email in text
-                            if present and found:
-                                return True
-                            if not present and not found:
-                                return True
-                            break
                 await asyncio.sleep(1)
             return False
         except Exception as e:
