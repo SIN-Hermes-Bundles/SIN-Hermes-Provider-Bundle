@@ -66,7 +66,7 @@ fi
 
 # Fireworks Provider Config mit Reasoning
 if [ "$DRY_RUN" = false ]; then
-    python3 << PYEOF
+    INSTALLER_API_KEY="${API_KEY}" python3 << 'PYEOF'
 import json, os
 
 config_path = os.path.expanduser("~/.config/opencode/opencode.json")
@@ -169,7 +169,7 @@ fireworks_provider = {
     },
     "options": {
         "baseURL": "https://sinatorpool-router.delqhi.com/inference/v1",
-        "apiKey": "${API_KEY}"
+        "apiKey": os.environ.get('INSTALLER_API_KEY', '<DEIN_API_KEY>')
     }
 }
 
