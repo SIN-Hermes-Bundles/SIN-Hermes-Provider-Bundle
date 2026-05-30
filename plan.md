@@ -5,8 +5,8 @@
 ```
 GMX Login (built-in, Step 0) → Alias Rotation (~180s) → Fireworks Signup
 → OTP → Verify → Login → Onboarding → Playwright Fallback → API Key → Pool
-Pool: 218 Keys (94 verfügbar, 10 used, 114 suspended)
-Cycle Time: ~180s avg
+Pool: 225 Keys (20 verfügbar, 11 used, 194 suspended)
+Cycle Time: ~140s avg
 Pool-Router: :9998 (ThreadingMixIn) → 10 Proxys :8888-:8897
 Pool-Router URL: sinatorpool-router.delqhi.com (single endpoint, auto-failover)
 API Key (alle Macs): <DEIN_API_KEY>
@@ -117,7 +117,7 @@ Ab jetzt nur noch:
 | 🔄 Live Runs | `python tools/rotate.py` — Keys generieren |
 | 📝 AGENTS.md | Learnings aus Live-Runs dokumentieren |
 
-**Status:** Feature-Complete ✅ — 218 Keys, ~180s/Rotation, Pool-Router + 10 Proxys, Config Manager, Keychain, Chat-Assistent.
+**Status:** Feature-Complete ✅ — 225 Keys, ~140s/Rotation, Pool-Router + 10 Proxys, Config Manager, Keychain, Chat-Assistent, Session Reuse.
 
 ---
 

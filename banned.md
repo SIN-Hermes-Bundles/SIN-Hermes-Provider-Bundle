@@ -4,11 +4,14 @@
 
 ---
 
-## 🚫 BANNED: Playwright-native Anti-Patterns (2026-05-29)
+## 🚫 BANNED: Playwright-native Anti-Patterns (2026-05-30) — V15.1
 
 | ❌ Verboten | Grund |
 |------------|-------|
-| Playwright `check()` auf React-Checkbox | "Clicking did not change state" — React-CB ignoriert JS-Click. Use CUA `AXPress` oder Playwright `click(force=True)` |
+| Playwright `check()` auf React-Checkbox | "Clicking did not change state" — React-CB ignoriert JS-Click. Use native `el.click()` auf `<button role="checkbox">` (Radix UI) |
+| `input[type="checkbox"]` mit `aria-label` für Use-Cases | Fireworks Use-Cases: `aria-label` Matching funktioniert NICHT — Checkboxen werden nicht gesetzt. Use `label:has-text("{use_case}")` + click() |
+| `label:has-text("Terms")` für Terms-Checkbox | Matcht den "Terms of Service" Link, nicht die Checkbox. Use `button[role="checkbox"]` + native `el.click()` |
+| Nur ein einfacher Button-Scan für Continue/Submit | React re-rendered Buttons → einfacher Scan trifft falschen Button. Use 3-Stufen-Strategie: 1) `has-text()` + `is_disabled()`, 2) `type="submit"`, 3) case-insensitive scan |
 | Playwright `fill()` auf React-Inputs ohne `click()` vorher | React-State nicht aktualisiert. Use `click()` + `fill()` oder `type(delay=50)` |
 | `page.locator('input[type="email"]')` auf Fireworks | Input hat KEIN type-Attribut. Use `input[name="email"]` |
 | `page.locator('input[type="password"]')` als einziger Selector | Es gibt 2 Password-Inputs (Password + Confirm). Use `input[name="password"]` |
@@ -17,6 +20,9 @@
 | `text=Next` als Submit-Button | Matcht Cookie-Banner "Next" — use `button[type="submit"]` + text-check |
 | `page.goto()` auf 3c.gmx.net direkt | Triggert IAC Anti-Automation. Use shadow DOM navigation via Playwright |
 | `browser.new_page()` für jeden Schritt | Tab-Explosion → Chrome überlastet. Reuse pages, close non-essential tabs |
+| `create_api_key()` ohne Session Reuse | Neue Page = keine Cookies → API Key Seite redirected zu `/login`. Use `login_fireworks()` Session übergeben (page+playwright+browser) |
+| `return {{...}}` statt `return {...}` | Python interpretiert `{{...}}` als Set mit Dict → `TypeError: cannot use 'dict' as set element` |
+| `parentElement` für Shadow DOM Traversal | Bricht an Shadow-Boundary. Use `el.getRootNode().host` |
 | `_click_text()` Helper aus V5/V7 | Unreliable text-matching. Use Playwright-native locators |
 | `cua-driver` für Navigation | Tab-Titel ist leer bei programmatischen Tabs. Use Playwright für Navigation |
 | `find_cua_window(title_keywords=["FreeMail"])` | Chrome-Titel ist LEER für neue Tabs. Use `get_page_target()` mit URL-Matching |
@@ -102,7 +108,7 @@
 
 ## 🚫 BANNED: CDP-Only Anti-Patterns (HISTORISCH — 2026-05-21)
 
-> **Diese Bans sind aus V5/V7. Aktueller Code (V14) nutzt Playwright-native — CDP wird nur noch für OTP-Extension und Cookie-Management verwendet.**
+> **Diese Bans sind aus V5/V7. Aktueller Code (V15.1) nutzt Playwright-native + Session Reuse — CDP wird nur noch für OTP-Extension und Cookie-Management verwendet.**
 
 | ❌ Verboten (historisch) | Grund |
 |--------------------------|-------|
@@ -167,4 +173,4 @@ Original-Profil 901 nutzen — Cookies sind an Original-Pfad gebunden (macOS Key
 
 ---
 
-*Last Updated: 2026-05-29 (V14 — Playwright-native)*
+*Last Updated: 2026-05-30 (V15.1 — Session Reuse + Use-Cases Fix)*

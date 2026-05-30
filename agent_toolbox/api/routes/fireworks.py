@@ -1,5 +1,5 @@
 """
-SINATOR — Fireworks Routes V8 (Playwright+CUA, 2026-05-22)
+SINATOR — Fireworks Routes V15.1 (Playwright+CUA + Session Reuse, 2026-05-30)
 """
 import time
 import logging
@@ -39,10 +39,36 @@ async def login(request: FireworksRegisterRequest):
 
 @router.post("/apikey", response_model=FireworksApiKeyResponse)
 async def apikey(request: FireworksApiKeyRequest):
-    """Create Fireworks API Key (Playwright PopUpButton + menuitem)."""
+    """Create Fireworks API Key with optional Session Reuse.
+
+    If email+password provided: logs in first, then creates key with same session.
+    If only key_name provided: creates new page (may redirect to /login).
+    """
     t0 = time.time()
     _require_browser()
-    result = await create_api_key(request.key_name)
+
+    page = None
+    playwright = None
+    browser = None
+
+    if request.email and request.password:
+        login_result = await login_fireworks(request.email, request.password)
+        page = login_result.get("page")
+        playwright = login_result.get("playwright")
+        browser = login_result.get("browser")
+        if not login_result.get("success"):
+            return FireworksApiKeyResponse(
+                status=login_result.get("status", "failed"),
+                execution_time=f"{time.time()-t0:.2f}s",
+                error=login_result.get("error", "Login failed"),
+            )
+
+    result = await create_api_key(
+        request.key_name,
+        page=page,
+        playwright=playwright,
+        browser=browser,
+    )
     return FireworksApiKeyResponse(
         api_key=result.get("api_key"),
         status=result["status"],

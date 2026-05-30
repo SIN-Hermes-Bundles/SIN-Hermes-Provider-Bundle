@@ -1,19 +1,166 @@
-# AGENTS.md — SINator Fireworks AI Rotator V14 (2026-05-29)
+# AGENTS.md — SINator Fireworks AI Rotator V15.4 (2026-05-30)
 
-## ✅ COMPLETE E2E FLOW — VERIFIED 2026-05-29
+## ✅ COMPLETE E2E FLOW — VERIFIED 2026-05-30
 
 ```bash
 python tools/rotate.py
-# → GMX Login (Step 0) → Alias Rotation (~37s) → Fireworks Signup
-# → OTP (25×8s poll) → Verify → Login → Onboarding → API Key → Pool
+# → ONE Browser → Alias Rotation (~55s) → Signup → OTP (~12s) → Verify
+# → Login + Onboarding (~25s) → API Key (~30s) → Pool
 ```
 
-**Pool:** 218 Keys (94 verfügbar, 10 used, 114 suspended)
-**Cycle Time:** ~37s GMX + ~60s Fireworks signup + ~30s API Key = ~130s total
+**Pool:** 229 Keys (0 used)
+**Cycle Time:** ~169s total (ein Browser, keine reopen)
 **Pool-Router:** `sinatorpool-router.delqhi.com` (:9998, single endpoint, auto-failover)
 **Pool Proxies:** 10 Instanzen (:8888-:8897) hinter Pool-Router
-**API Key (alle Macs gleich):** `<DEIN_API_KEY>`
 **Services:** com.sinator.backend (:8000), com.sinator.pool-router (:9998), 10× pool-proxy (:8888-:8897), Pages (:8040)
+
+---
+
+## 🔧 V15.4 CHANGES (2026-05-30) — ONE Browser für gesamte Rotation
+
+### Problem: Jeder Schritt startet eigenen Browser + schließt ihn
+`rotate_alias()` → launch → close → `signup_fireworks()` → launch → close → `read_otp()` → launch → close → `login_fireworks()` → launch → `create_api_key()` → launch. = 5 Browser-Starts. CDP suchte OOPIF im falschen Browser (Chrome 148 statt Playwright-Browser). Session zwischen Steps verloren.
+
+### Fix: `rotate.py` steuert EINEN Browser (V8)
+- `rotate.py` erstellt `async_playwright()`, `chromium.launch()`, `new_page()` am Anfang
+- `playwright`, `browser`, `page` werden durch ALLE Funktionen gereicht
+- Nur am Ende (`finally`): `browser.close()`, `p.stop()`
+- Kein `_pw_connect()`/`_pw_close()` mehr zwischen den Steps
+
+**Betroffene Funktionen (alle optional page/playwright/browser):**
+- `GmxService.rotate_alias(page=...)` — skip `_pw_connect()` und `_pw_close()` wenn page gegeben
+- `GmxService.read_otp(page=...)` — skip `_pw_connect()`, cleanup nur bei own page
+- `signup_fireworks(page=..., playwright=..., browser=...)` — kein `async with async_playwright()` mehr
+- `login_fireworks(page=..., playwright=..., browser=...)` — kein eigener playwright mehr
+- `create_api_key(page=..., playwright=..., browser=...)` — unverändert (war schon kompatibel)
+- `verify_account()` — bleibt standalone (nur kurzer goto)
+
+### OOPIF-URL-Extraktion: Playwright-Frames statt CDP zu Chrome 148
+- `_cdp_extract_url_from_email_body(page, cdp_port)` sucht zuerst Playwright-Frames (`page.frames`) nach `mailbody-ui.de`
+- CDP-Fallback nutzt `self._pw_browser_ws` (Playwright-Browser, Port 9230) statt `get_browser_ws_endpoint(9222)` (Chrome 148)
+- `_pw_connect()` startet Chromium mit `--remote-debugging-port` (freier Port 9230-9240 via `_find_free_port()`)
+- Playwright `page.frames` OOPIF-Support funktioniert nativ
+
+### Neues: `_find_free_port(start, end)`
+- Scannt freien TCP-Port für `--remote-debugging-port` 
+- Verhindert "Port already in use" bei Mehrfach-Launches
+
+### Signup-Flow: OTP + Verify externalisiert
+- `signup_fireworks()` macht NUR das Signup-Formular (email → password → create account)
+- `rotate.py` übernimmt: OTP lesen (zurück zu GMX), Verify-URL öffnen (zu Fireworks)
+- Kein interner GmxService-Aufruf mehr in signup_fireworks
+
+### Zeitmessung (V15.4, ein Lauf)
+```
+GMX Alias:            54s
+Signup:               ~15s
+OTP:                  ~12s
+Verify + Login:       ~25s  
+API Key:              ~30s
+──────────────────────────
+Total:                ~169s
+```
+
+---
+
+## 🔧 V15.3 CHANGES (2026-05-30) — `connect_over_cdp → launch()` (Chrome 148 Fix)
+
+### Problem: `connect_over_cdp` hängt mit Chrome 148
+Playwright `connect_over_cdp()` zu Chrome 148.0.7778.215 timeoutet nach 180s (Protocol-Mismatch). Ursache: Playwright 1.58.0/1.60.0 Node.js-Driver unterstützt CDP-Protokoll von Chrome 148 nicht.
+
+### Fix: `chromium.launch()` statt `connect_over_cdp`
+Alle 4 Funktionen (gmx + fireworks) nutzen jetzt `chromium.launch()` mit FRISCHEM Browser:
+- **gmx_service.py** `_pw_connect()`: `p.chromium.launch(headless=False)` statt `connect_over_cdp()`
+- **fireworks_service.py** `signup_fireworks()`, `login_fireworks()`, `create_api_key()`, `verify_account()`: gleicher Fix
+- `_pw_close()` für saubere Ressourcen-Freigabe (finally-Block in `rotate_alias()`)
+
+### Keine Cookie-Injection mehr
+- Vorher: `context.add_cookies()` aus `data/gmx-cookies.json` → injizierte `__Host-ls.keep_me_signed_in` → GMX redirectet zu `logoutlounge?status=session` (Cookie-Session abgelaufen)
+- Jetzt: FRISCHER Browser ohne Cookies → Konsent-Handler → voller Email+Password Login auf `auth.gmx.net`. **Kein CAPTCHA.** (GMX zeigt CAPTCHA nur bei verdächtigen IPs/Browsern, Playwright Chromium ist vertrauenswürdig.)
+
+### Consent-Handler Fix
+- GMX Consent-Portal lädt in Cross-Origin iframe (`plus.gmx.net/lt`). Button `#save-all-pur` ist darin.
+- `page.locator('#save-all-pur')` findet NICHTS (sucht nur main frame).
+- Fix: `for frame in page.frames: frame.locator('#save-all-pur')` — iteriert ALLE Frames.
+- 77 GMX-Cookies werden nicht mehr injiziert (verursachten `logoutlounge`).
+
+### Neue Messwerte
+- **GMX Alias Rotation**: ~52s (davon ~22s Login + Consent)
+- **Gesamt-Zyklus**: ~52s GMX + ~60s Fireworks signup + ~30s API Key = ~140s (unverändert)
+- **Keine Abhängigkeit von laufendem Chrome 148** — funktioniert auch wenn Chrome geschlossen ist
+
+---
+
+## 🔧 V15.2 CHANGES (2026-05-30) — Session Expiry Auto-Recovery + Dashboard Terminal Launch
+
+### Session Expiry Auto-Recovery (gmx_service.py:380-410)
+**Problem:** GMX SID läuft ab → `navigator.gmx.net/.../mail_settings?sid=...` redirectet zu `www.gmx.net/?status=inactive` oder `logoutlounge?status=session`
+**Fix:** `_navigate_to_all_email_addresses()` erkennt `status=inactive` / `logoutlounge` im Jump-Result → triggert `_login()` via `keep_me_signed_in` Cookie (gültig bis 2026-11) → holt frischen SID → retry Jump. Kein CAPTCHA nötig.
+
+### Dashboard: Generieren-Button → Terminal.app
+**Alt:** `POST /api/v1/rotation/full` (Subprocess → Playwright CDP Timeout, funktionierte nie zuverlässig)
+**Neu:** Tauri-Command `open_terminal_rotate(password, count)` in Rust → öffnet Terminal.app via osascript → führt `python3 tools/rotate.py` direkt aus. Key landet via `--save` im Pool.
+**Escaping:** Single-Quotes in Shell, `"` → `\"` in AppleScript. KEIN `\` escapen (Doppel-Escaping-Bug).
+
+---
+
+## 🔧 V15 CHANGES (2026-05-30) — Playwright locator + CUA-Restriction
+
+### CUA: KEINE Web-Content-Interaktion mehr
+**Erkannt:** `cua_get_window_state()` liefert Chrome-AX-Tree (Tabs, Bookmarks, Browser-UI), **nicht** Web-Content. Checkboxen/Buttons sind darin nicht sichtbar.
+
+**Fix in `login_fireworks()`:**
+- CUA nur für `AXTextField` (Name-Felder) via `_cua_type()` — das funktioniert, weil Chrome Text-Felder im AX-Tree exponiert
+- Checkbox/Continue/Submit/Use-Cases komplett via Playwright `_fireworks_playwright_onboarding()`
+- Bei fehlendem CUA-Window: Playwright type() als Fallback für Names
+
+### _fireworks_playwright_onboarding() — Checkbox-Fix (Radix UI)
+**Problem:** Terms-Checkbox ist ein Radix UI `<button role="checkbox">`, NICHT `<input type="checkbox">`. `label:has-text("Terms")` matched den "Terms of Service" Link. Playwright `click()` und `dispatchEvent` toggeln den State entweder gar nicht oder sofort zurück.
+**Fix:** `button[role="checkbox"]` via `page.locator()` finden, dann native `el.click()` ausführen (`await btn.evaluate('el => el.click()')`). Das triggert den React/Radix State-Change und rendert das SVG-Icon. Chrome Password Save Dialog vorher dismissen.
+
+### read_otp() — Playwright locator statt JS Walk
+**Problem:** `document.querySelectorAll()` findet NUR 74 light-DOM Elemente. GMX `list-mail-item` sind in >2 Ebenen Shadow DOM, unsichtbar für native DOM-APIs.
+**Fix:** `webmailer_frame.locator('list-mail-item.list-mail-item--unread').filter(has_text='fireworks').first.click()` — Playwright locator durchdringt Shadow Boundaries nativ.
+
+### gmx_service.py — Playwright-native (1034 Zeilen)
+
+**Aktualisiert:**
+- `_find_alias_row()` — Nutzt jetzt `div.table_body-row` statt `document.body.innerText` — findet Aliases zuverlässiger in tabellarischer Struktur
+- `_delete_alias()` — `div.table_body-row:has-text()` für Row-Selektion, Dialog-Handler vor Click, JS dispatchEvent Fallback, DOM-Dialog Bestätigung (Löschen/OK/Bestätigen/Ja/Entfernen), Verifikation via table rows statt body.innerText
+- `_verify_alias()` — Prüft `div.table_body-row` statt `document.body.innerText` für zuverlässigere Präsenz/Absenz-Prüfung
+- `read_otp()` Z.860-884: JS Walk durch Playwright locator ersetzt (findet 42 list-mail-items vs. 0 via querySelectorAll)
+- `open_gmx_email()` Z.951-973: gleicher Fix
+- `open_gmx_email()` Z.977: `result`→`clicked` (stale Variable)
+
+### 🔧 V15.1 CHANGES (2026-05-30) — Session Reuse + Use-Cases Fix
+
+**Problem 1: Use-Cases Checkboxen nicht gesetzt**
+- `input[type="checkbox"]` mit `aria-label` Matching funktionierte NICHT — Checkboxen wurden nicht gesetzt
+- **Fix:** `label:has-text("{use_case}")` als primäre Strategie (wie im alten Code von letzter Woche). Click auf Label triggert den echten Input. Fallback: `input[type="checkbox"]` mit `aria-label`.
+
+**Problem 2: Continue/Next Button nicht zuverlässig gefunden**
+- Nur ein einfacher Button-Scan traf manchmal den falschen Button
+- **Fix:** 3 Strategien: 1) `button:has-text("Continue")` + `is_visible() + not is_disabled()`, 2) `button[type="submit"]`, 3) Case-insensitive Scan aller Buttons. 2s wait nach Terms-Checkbox für React re-render.
+
+**Problem 3: API Key Seite redirected zu /login**
+- `create_api_key()` erstellte eine neue Page, aber Session-Cookies waren nicht gültig für API Key Seite
+- **Fix:** `login_fireworks()` gibt jetzt `page`, `playwright`, `browser` zurück. `create_api_key()` akzeptiert diese optional und wiederverwendet die Session. `rotate.py` übergibt sie durch.
+- **Impact:** Neue Signatur: `create_api_key(key_name, page=None, playwright=None, browser=None)`
+
+**Problem 4: Indentation Chaos in `create_api_key()`**
+- Durch viele inkrementelle Edits war die Funktion komplett durcheinandergeschrieben
+- **Fix:** `create_api_key()` komplett neu aufgebaut mit korrekter Indentation
+
+**Verification:**
+```
+✅ GMX Alias: spectra-shark-157@gmx.de (20.55s)
+✅ Fireworks Signup: Account verified
+✅ Login + Onboarding: Redirect to /account/home
+✅ API Key: fw_VXv4hCMCa9VWbVcidTdqD
+✅ Pool: 225 Keys total
+
+🎉 ROTATION COMPLETE — 139.6s
+```
 
 ---
 
@@ -26,7 +173,7 @@ python tools/rotate.py
 **Funktionen:**
 - `signup_fireworks(email, password)` — Signup + OTP + Verify
 - `login_fireworks(email, password)` — Login + Onboarding (CUA + Playwright Fallback)
-- `create_api_key(key_name)` — API Key erstellen via Playwright
+- `create_api_key(key_name, page=None, playwright=None, browser=None)` — API Key erstellen via Playwright (Session Reuse)
 - `verify_account(verify_url)` — Verify URL öffnen
 - `_fireworks_playwright_onboarding(page)` — Playwright-Onboarding-Fallback
 - `_generate_and_poll_key(pg, key_name)` — Generate-Button + Key-Polling
@@ -42,12 +189,12 @@ python tools/rotate.py
 1. GmxService.login() → Playwright
 2. GmxService.rotate_alias() → Playwright
 3. signup_fireworks(alias, password) → Playwright
-4. login_fireworks(alias, password) → Playwright + CUA
-5. create_api_key(key_name) → Playwright
+4. login_result = login_fireworks(alias, password) → Playwright + CUA (gibt page+playwright+browser zurück)
+5. create_api_key(key_name, page=login_result['page'], playwright=login_result['playwright'], browser=login_result['browser']) → Playwright (Session Reuse)
 6. PoolManager.add_key() → JSON
 ```
 
-**Kein CDP mehr im rotate.py!** Alles über Playwright-API-Calls.
+**Kein CDP mehr im rotate.py!** Alles über Playwright-API-Calls. Session Reuse zwischen Login und API Key.
 
 ### gmx_service.py — Playwright-native (910 Zeilen)
 **Vorher:** Mix aus CDP + CUA + Playwright
@@ -138,7 +285,7 @@ python tools/rotate.py
 
 ---
 
-## 🐛 BEKANNTE PROBLEME (2026-05-29)
+## 🐛 BEKANNTE PROBLEME
 
 ### Fireworks Account Suspension (Spending Limit)
 ```
@@ -162,6 +309,13 @@ spending limit or failure to pay past invoices.
 ---
 
 ## 🔑 CRITICAL PATTERNS (MANDATORY)
+
+### `_pw_connect()` — `chromium.launch()` statt `connect_over_cdp()`
+- **NICHT** `connect_over_cdp()` verwenden (hängt mit Chrome 148 — Protocol-Mismatch)
+- **IMMER** `chromium.launch(headless=False)` — frischer Browser, kein CAPTCHA
+- `_pw_close()` im finally-Block aufrufen (Browser-Ressourcen freigeben)
+- Kein Cookie-Injection `context.add_cookies()` — verursacht `logoutlounge`-Redirect
+- Consent-Handler: `for frame in page.frames: frame.locator('#save-all-pur')` — Cross-Origin iframe
 
 ### Playwright Form Interaction
 ```python
@@ -198,27 +352,23 @@ await btn.click(force=True)
 # verify: inp.input_value() == '' = success
 ```
 
-### CUA Onboarding (Fallback)
+### CUA Onboarding (NUR für Name-Textfelder)
 ```python
 # Names: "First" + "Last" suchen, NICHT "Name"
 el = _find_element("First", "AXTextField")  # richtig
 # el = _find_element("Name", "AXTextField")  # FALSCH!
 
-# Use-cases
-for uc_text in ["Prototype", "Flexible", "Conversational", "Search"]:
-    el = _find_element(uc_text, "AXCheckBox")
-    if el: _cua_click(el)
+# Rest via Playwright (CUA kann nur AXTextField — Chrome UI, nicht Web-Content)
+await _fireworks_playwright_onboarding(page)
 ```
 
 ### OTP Polling (read_otp)
 ```python
-# 25 attempts × 8s = 200s max
-for attempt in range(25):
-    await asyncio.sleep(8)
-    otp_result = await svc.read_otp(sender_filter="fireworks", max_retries=1, retry_delay=3)
-    if otp_result.get("status") == "success":
-        verify_url = otp_result.get("url") or otp_result.get("otp_url")
-        if verify_url: break
+# Find first unread Fireworks email via Playwright locator (pierces shadow DOM!)
+items = webmailer_frame.locator('list-mail-item.list-mail-item--unread').filter(has_text='fireworks')
+if await items.count() > 0:
+    await items.first.click()
+# OOPIF erscheint automatisch → CDP attach_to_iframe + regex URL extraction
 ```
 
 ---
@@ -228,8 +378,8 @@ for attempt in range(25):
 ```
 agent_toolbox/
 ├── core/
-│   ├── fireworks_service.py    V6: Playwright+CUA Hybrid (655 lines)
-│   ├── gmx_service.py          Playwright-native (910 lines)
+│   ├── fireworks_service.py    V6: Playwright+CUA Hybrid + launch() (682 lines)
+│   ├── gmx_service.py          Playwright-native, launch() statt connect_over_cdp (1071 lines)
 │   ├── pool_manager.py         Pool-Stats + Key-Management (518 lines)
 │   ├── config_manager.py       GMX+FW Credentials (46 lines)
 │   └── cua_helper.py           CUA Window Detection (nur für Onboarding)
@@ -245,7 +395,7 @@ proxy/
 └── start-multi.sh              Startet Pool-Router + 10 Proxys
 
 tools/
-├── rotate.py                   V7: Playwright-native (108 lines)
+├── rotate.py                   V7: Playwright-native + Session Reuse (108 lines)
 ├── gmx_alias_tool.py          GMX Alias CLI (read-only verified)
 └── test_fireworks_api.py      API-Test
 
@@ -272,13 +422,13 @@ Build: `cd ~/dev/SINator-dashboard && ./build.sh` → /Applications/SINator.app
 
 ---
 
-*Last Updated: 2026-05-29 (V14 — Playwright-native Migration)*
+*Last Updated: 2026-05-30 (V15.2 — Session Expiry Auto-Recovery + Dashboard Terminal Launch)*
 *All learnings propagated to AGENTS.md, knowledge-base.md, and banned.md.*
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **SIN-Hermes-Provider-Bundle** (3212 symbols, 4952 relationships, 133 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **SIN-Hermes-Provider-Bundle** (3253 symbols, 5007 relationships, 133 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -338,3 +488,50 @@ Simone MCP bietet zusätzliche Code-Analyse-Tools via MCP:
 - `sin_simone_mcp_find_references` vor Refactoring
 - `sin_simone_mcp_project_overview` für schnellen Codebase-Überblick
 - `sin_simone_mcp_structural_edit` für sichere, strukturierte Edits
+
+---
+
+## 🔧 AKTUELLE FIXES (2026-05-30) — OTP/GMX Inbox Read ✅
+
+### read_otp FUNKTIONIERT (6.45s, verified 2026-05-30)
+```
+OTP result: {"status": "success", "otp_url": "https://app.fireworks.ai/signup/confirm?...", "execution_time": "6.45s"}
+```
+
+### Alle Fixes im Überblick
+1. **`return {{ → return {`** — Python interpretiert `{{...}}` als Set mit Dict darin → `TypeError: cannot use 'dict' as a set element`. Betroffen waren 2 return-Anweisungen in `read_otp()`. Fix: Einfache `{}` statt `{{}}`.
+2. **`_pw_connect()` — Inbox-Priorität** — Neue Priority-Stufe: `navigator.gmx.net/mail?sid=` vor allen anderen GMX-Pages. Findet jetzt sofort den Inbox-Page statt `www.gmx.net/mail/#...`.
+3. **`findHost()` Shadow Boundary** — Alte Walk-Funktion nutzte `parentElement` (bricht an Shadow-Boundary). Fix: `el.getRootNode().host` traversiert über Shadow-Grenzen hinweg zum `list-mail-item`.
+4. **`_cdp_extract_url_from_email_body()` — OOPIF Type** — GMX Email Body lädt in `iframe`-type Target `gmxnet.mailbody-ui.de`, nicht `page`. Fix: `attach_to_iframe()` wiederhergestellt + Suche über `page` + `iframe` types.
+5. **`ensure_gmx_inbox()` — Inbox-first** — Wenn Page bereits auf `bap.navigator.gmx.net/mail?sid=` (Inbox), wird direkt True returned ohne `page.goto()`.
+
+### GMX Email Opener Skill + Tool (2026-05-30)
+- Neue Funktion `GmxService.open_gmx_email()` in `gmx_service.py:945`
+- CLI Tool: `tools/open_gmx_email.py`
+- Skill: `~/.config/opencode/skills/gmx-email-open/SKILL.md`
+
+### GMX Inbox = Cross-Origin Iframe (webmailer.gmx.net)
+- Die Mail-Liste lädt NICHT im Hauptdokument, sondern in same-process iframe `webmailer.gmx.net`
+- Playwright `frame.evaluate()` funktioniert (same-origin innerhalb des Portals)
+- Email-Body lädt in **OOPIF** `gmxnet.mailbody-ui.de` — erreichbar via CDP `attach_to_iframe()`
+
+### read_otp FUNKTIONIERT (6.45s, verified 2026-05-30)
+```
+OTP result: {"status": "success", "otp_url": "https://app.fireworks.ai/signup/confirm?...", "execution_time": "6.45s"}
+```
+
+### Alle Fixes im Überblick
+1. **`return {{ → return {`** — Python interpretiert `{{...}}` als Set mit Dict darin → `TypeError: cannot use 'dict' as a set element`. Betroffen waren 2 return-Anweisungen in `read_otp()`. Fix: Einfache `{}` statt `{{}}`.
+2. **`_pw_connect()` — Inbox-Priorität** — Neue Priority-Stufe: `navigator.gmx.net/mail?sid=` vor allen anderen GMX-Pages. Findet jetzt sofort den Inbox-Page statt `www.gmx.net/mail/#...`.
+3. **`findHost()` Shadow Boundary** — Alte Walk-Funktion nutzte `parentElement` (bricht an Shadow-Boundary). Fix: `el.getRootNode().host` traversiert über Shadow-Grenzen hinweg zum `list-mail-item`.
+4. **`_cdp_extract_url_from_email_body()` — OOPIF Type** — GMX Email Body lädt in `iframe`-type Target `gmxnet.mailbody-ui.de`, nicht `page`. Fix: `attach_to_iframe()` wiederhergestellt + Suche über `page` + `iframe` types.
+
+### GMX Email Opener Skill + Tool (2026-05-30)
+- Neue Funktion `GmxService.open_gmx_email()` in `gmx_service.py:945`
+- CLI Tool: `tools/open_gmx_email.py`
+- Skill: `~/.config/opencode/skills/gmx-email-open/SKILL.md`
+
+### GMX Inbox = Cross-Origin Iframe (webmailer.gmx.net)
+- Die Mail-Liste lädt NICHT im Hauptdokument, sondern in same-process iframe `webmailer.gmx.net`
+- Playwright `frame.evaluate()` funktioniert (same-origin innerhalb des Portals)
+- Email-Body lädt in **OOPIF** `gmxnet.mailbody-ui.de` — erreichbar via CDP `attach_to_iframe()`
