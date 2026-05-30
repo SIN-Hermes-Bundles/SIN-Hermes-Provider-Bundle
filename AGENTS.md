@@ -341,26 +341,47 @@ Simone MCP bietet zusätzliche Code-Analyse-Tools via MCP:
 
 ---
 
-## 🔧 AKTUELLE FIXES (2026-05-30) — OTP/GMX Inbox Read
+## 🔧 AKTUELLE FIXES (2026-05-30) — OTP/GMX Inbox Read ✅
+
+### read_otp FUNKTIONIERT (6.45s, verified 2026-05-30)
+```
+OTP result: {"status": "success", "otp_url": "https://app.fireworks.ai/signup/confirm?...", "execution_time": "6.45s"}
+```
+
+### Alle Fixes im Überblick
+1. **`return {{ → return {`** — Python interpretiert `{{...}}` als Set mit Dict darin → `TypeError: cannot use 'dict' as a set element`. Betroffen waren 2 return-Anweisungen in `read_otp()`. Fix: Einfache `{}` statt `{{}}`.
+2. **`_pw_connect()` — Inbox-Priorität** — Neue Priority-Stufe: `navigator.gmx.net/mail?sid=` vor allen anderen GMX-Pages. Findet jetzt sofort den Inbox-Page statt `www.gmx.net/mail/#...`.
+3. **`findHost()` Shadow Boundary** — Alte Walk-Funktion nutzte `parentElement` (bricht an Shadow-Boundary). Fix: `el.getRootNode().host` traversiert über Shadow-Grenzen hinweg zum `list-mail-item`.
+4. **`_cdp_extract_url_from_email_body()` — OOPIF Type** — GMX Email Body lädt in `iframe`-type Target `gmxnet.mailbody-ui.de`, nicht `page`. Fix: `attach_to_iframe()` wiederhergestellt + Suche über `page` + `iframe` types.
+5. **`ensure_gmx_inbox()` — Inbox-first** — Wenn Page bereits auf `bap.navigator.gmx.net/mail?sid=` (Inbox), wird direkt True returned ohne `page.goto()`.
+
+### GMX Email Opener Skill + Tool (2026-05-30)
+- Neue Funktion `GmxService.open_gmx_email()` in `gmx_service.py:945`
+- CLI Tool: `tools/open_gmx_email.py`
+- Skill: `~/.config/opencode/skills/gmx-email-open/SKILL.md`
 
 ### GMX Inbox = Cross-Origin Iframe (webmailer.gmx.net)
-- Die Mail-Liste lädt NICHT im Hauptdokument, sondern in cross-origin iframe `webmailer.gmx.net`
-- Playwright `frame.evaluate()` funktioniert NICHT bei cross-origin (CORS)
-- Fix: CDP `attach_to_iframe("webmailer.gmx.net")` + `Runtime.evaluate`
+- Die Mail-Liste lädt NICHT im Hauptdokument, sondern in same-process iframe `webmailer.gmx.net`
+- Playwright `frame.evaluate()` funktioniert (same-origin innerhalb des Portals)
+- Email-Body lädt in **OOPIF** `gmxnet.mailbody-ui.de` — erreichbar via CDP `attach_to_iframe()`
 
-### GMX Shadow DOM
-- `<list-mail-box>` → `<list-mail-item>` in 3 Ebenen Shadow DOM
-- Playwright Locators finden 0 Items
-- Fix: CDP `Runtime.evaluate` mit JS `querySelectorAll` + `shadowRoot` Traversal
+### read_otp FUNKTIONIERT (6.45s, verified 2026-05-30)
+```
+OTP result: {"status": "success", "otp_url": "https://app.fireworks.ai/signup/confirm?...", "execution_time": "6.45s"}
+```
 
-### OTP Flow
-1. `_ensure_gmx_inbox()` — einmalig zur Inbox navigieren
-2. KEIN `page.reload()` / `page.goto()` mehr (killt Session)
-3. CDP `attach_to_iframe("webmailer.gmx.net")` für cross-origin
-4. JS Shadow DOM Walk + `.click()` auf `list-mail-item`
-5. `Runtime.evaluate("document.body.innerText")` für URL
-6. Fallback: CDP `attach_to_iframe("mailbody-ui.de")` OOPIF
+### Alle Fixes im Überblick
+1. **`return {{ → return {`** — Python interpretiert `{{...}}` als Set mit Dict darin → `TypeError: cannot use 'dict' as a set element`. Betroffen waren 2 return-Anweisungen in `read_otp()`. Fix: Einfache `{}` statt `{{}}`.
+2. **`_pw_connect()` — Inbox-Priorität** — Neue Priority-Stufe: `navigator.gmx.net/mail?sid=` vor allen anderen GMX-Pages. Findet jetzt sofort den Inbox-Page statt `www.gmx.net/mail/#...`.
+3. **`findHost()` Shadow Boundary** — Alte Walk-Funktion nutzte `parentElement` (bricht an Shadow-Boundary). Fix: `el.getRootNode().host` traversiert über Shadow-Grenzen hinweg zum `list-mail-item`.
+4. **`_cdp_extract_url_from_email_body()` — OOPIF Type** — GMX Email Body lädt in `iframe`-type Target `gmxnet.mailbody-ui.de`, nicht `page`. Fix: `attach_to_iframe()` wiederhergestellt + Suche über `page` + `iframe` types.
 
-### read_otp() Loop-Fix
-- Vorher: Outer loop 25× `(sleep 8s + read_otp(max_retries=25))` = 5200s max
-- Nachher: Single `read_otp(max_retries=25, retry_delay=8)` = 200s max
+### GMX Email Opener Skill + Tool (2026-05-30)
+- Neue Funktion `GmxService.open_gmx_email()` in `gmx_service.py:945`
+- CLI Tool: `tools/open_gmx_email.py`
+- Skill: `~/.config/opencode/skills/gmx-email-open/SKILL.md`
+
+### GMX Inbox = Cross-Origin Iframe (webmailer.gmx.net)
+- Die Mail-Liste lädt NICHT im Hauptdokument, sondern in same-process iframe `webmailer.gmx.net`
+- Playwright `frame.evaluate()` funktioniert (same-origin innerhalb des Portals)
+- Email-Body lädt in **OOPIF** `gmxnet.mailbody-ui.de` — erreichbar via CDP `attach_to_iframe()`

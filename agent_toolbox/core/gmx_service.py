@@ -81,6 +81,15 @@ class GmxService:
                     logger.info(f"[_pw_connect] Found allEmailAddresses page: {url[:60]}...")
                     return page
         
+        # Prefer navigator inbox page (has active SID session)
+        for ctx in browser.contexts:
+            for pg in ctx.pages:
+                url = pg.url or ""
+                if "navigator.gmx.net/mail?sid=" in url and "iac/restart" not in url:
+                    page = pg
+                    logger.info(f"[_pw_connect] Found navigator inbox: {url[:60]}...")
+                    return page
+        
         # Otherwise, prefer logged-in GMX pages (Sie sind eingeloggt)
         for ctx in browser.contexts:
             for pg in ctx.pages:
@@ -703,7 +712,7 @@ class GmxService:
     async def _cdp_extract_url_from_email_body(self, cdp_port: int) -> Optional[str]:
         """After clicking the email, extract Fireworks verify URL from the email body.
         
-        The opened email loads in an OOPIF from gmxnet.mailbody-ui.de.
+        The opened email body loads in a cross-origin OOPIF from gmxnet.mailbody-ui.de.
         Find that iframe target, attach to it, and extract the URL from its content.
         """
         try:
@@ -711,7 +720,7 @@ class GmxService:
             cdp = CDPClient(ws_url)
             await cdp.connect()
             try:
-                # Try mailbody-ui.de OOPIF — attach directly by target type + url
+                # Try mailbody-ui.de OOPIF — this is an iframe-type target
                 attached = await cdp.attach_to_iframe("mailbody-ui.de")
                 if attached:
                     child_sid, target = attached
@@ -724,11 +733,11 @@ class GmxService:
                         if candidates:
                             return html_module.unescape(candidates[0])
                 
-                # Fallback: search all navigator.gmx.net pages for fireworks URL
+                # Fallback: search all page + iframe targets for fireworks URL
                 targets = await cdp.get_targets()
                 for t in targets:
                     url = t.get("url", "")
-                    if t.get("type") == "page" and ("navigator.gmx.net" in url or "mailbody" in url):
+                    if t.get("type") in ("page", "iframe") and ("gmx.net" in url or "mailbody" in url):
                         sid = await cdp.attach_to_target(t["targetId"])
                         text = await cdp.evaluate(sid, "document.body.innerText")
                         result = text.get("result", {}).get("value", "")
@@ -851,26 +860,34 @@ class GmxService:
                     # JS Shadow DOM Walk im webmailer iframe
                     result = await webmailer_frame.evaluate(f"""(function() {{
                         const query = '{sender_filter}'.toLowerCase();
+                        function findHost(el) {{
+                            const root = el.getRootNode();
+                            if (root instanceof ShadowRoot) {{
+                                const host = root.host;
+                                const tag = (host.tagName || '').toLowerCase();
+                                if (tag === 'list-mail-item' || tag === 'list-one-inbox') return host;
+                                return findHost(host);
+                            }}
+                            return el;
+                        }}
                         function walk(root, depth) {{
-                            if (depth > 5) return null;
+                            if (depth > 6) return null;
                             if (!root || typeof root.querySelectorAll !== 'function') return null;
                             const all = root.querySelectorAll('*');
                             for (let i = 0; i < all.length; i++) {{
                                 const el = all[i];
                                 const text = (el.textContent || '').toLowerCase();
                                 if (text.includes(query)) {{
-                                    let target = el;
-                                    for (let j = 0; j < 5; j++) {{
-                                        if (!target) break;
-                                        const tag = (target.tagName || '').toLowerCase();
-                                        const role = (target.getAttribute('role') || '').toLowerCase();
-                                        if (tag === 'list-mail-item' || role === 'row' || role === 'link') {{
-                                            target.click();
-                                            return {{clicked: true, tag: tag}};
-                                        }}
-                                        target = target.parentElement;
+                                    const host = findHost(el);
+                                    const tag = (host.tagName || '').toLowerCase();
+                                    if (tag === 'list-mail-item' || tag === 'list-one-inbox') {{
+                                        host.click();
+                                        host.dispatchEvent(new MouseEvent('mousedown', {{bubbles: true}}));
+                                        host.dispatchEvent(new MouseEvent('mouseup', {{bubbles: true}}));
+                                        return {{clicked: true, tag: tag}};
                                     }}
-                                    try {{ el.click(); return {{clicked: true, method: 'direct'}}; }} catch(e) {{}}
+                                    host.click();
+                                    return {{clicked: true, method: 'host', hostTag: tag}};
                                 }}
                                 if (el.shadowRoot) {{
                                     const found = walk(el.shadowRoot, depth + 1);
@@ -896,21 +913,21 @@ class GmxService:
                         if candidates:
                             confirm_url = html_module.unescape(candidates[0])
                             logger.info(f"OTP URL found via webmailer: {confirm_url[:80]}...")
-                            return {{
+                            return {
                                 "status": "success",
                                 "otp_url": confirm_url,
                                 "execution_time": f"{time.time()-start_time:.2f}s"
-                            }}
+                            }
                         
                         # 2. Fallback: CDP mailbody-ui.de OOPIF
                         confirm_url = await self._cdp_extract_url_from_email_body(cdp_port)
                         if confirm_url:
                             logger.info(f"OTP URL found via OOPIF: {confirm_url[:80]}...")
-                            return {{
+                            return {
                                 "status": "success",
                                 "otp_url": confirm_url,
                                 "execution_time": f"{time.time()-start_time:.2f}s"
-                            }}
+                            }
                 except Exception as e:
                     logger.debug(f"Webmailer evaluation failed: {e}")
                 
@@ -924,6 +941,80 @@ class GmxService:
         except Exception as e:
             logger.error(f"OTP search failed: {e}")
             return {"status": "error", "otp_url": None, "error": str(e)}
+
+    async def open_gmx_email(self, sender_filter: str = "fireworks", cdp_port: int = 9222) -> Dict[str, Any]:
+        """Dedizierter GMX Email-Opener.
+        
+        Findet + öffnet die neueste Email von einem bestimmten Absender
+        im GMX Webmailer. Nutzt Shadow DOM Walk + Playwright Click.
+        Klickt NUR auf LIST-MAIL-ITEM (nicht auf Container/Detail).
+        Kein OTP, keine URL-Extraktion — nur öffnen.
+        """
+        try:
+            page = await self._pw_connect(cdp_port)
+            
+            if not await self._ensure_gmx_inbox(page, cdp_port):
+                return {"status": "error", "error": "nicht zur inbox navigiert"}
+            
+            logger.info(f"Inbox URL: {page.url[:80]}")
+            
+            webmailer_frame = None
+            for f in page.frames:
+                if "webmailer.gmx.net" in f.url:
+                    webmailer_frame = f
+                    break
+            
+            if not webmailer_frame:
+                return {"status": "error", "error": "webmailer iframe nicht gefunden"}
+            
+            result = await webmailer_frame.evaluate(f"""(function() {{
+                const query = '{sender_filter}'.toLowerCase();
+                function findHost(el) {{
+                    const root = el.getRootNode();
+                    if (root instanceof ShadowRoot) {{
+                        const host = root.host;
+                        const tag = (host.tagName || '').toLowerCase();
+                        if (tag === 'list-mail-item' || tag === 'list-one-inbox') return host;
+                        return findHost(host);
+                    }}
+                    return null;
+                }}
+                function walk(root, depth) {{
+                    if (depth > 6) return null;
+                    if (!root || typeof root.querySelectorAll !== 'function') return null;
+                    const all = root.querySelectorAll('*');
+                    for (let i = 0; i < all.length; i++) {{
+                        const el = all[i];
+                        const text = (el.textContent || '').toLowerCase();
+                        if (text.includes(query)) {{
+                            const host = findHost(el);
+                            if (!host) continue;
+                            const tag = (host.tagName || '').toLowerCase();
+                            host.click();
+                            host.dispatchEvent(new MouseEvent('mousedown', {{bubbles: true}}));
+                            host.dispatchEvent(new MouseEvent('mouseup', {{bubbles: true}}));
+                            return {{clicked: true, tag: tag}};
+                        }}
+                        if (el.shadowRoot) {{
+                            const found = walk(el.shadowRoot, depth + 1);
+                            if (found && found.clicked) return found;
+                        }}
+                    }}
+                    return null;
+                }}
+                return walk(document, 0);
+            }})()""")
+            
+            clicked = result and (isinstance(result, dict) and result.get("clicked"))
+            if not clicked:
+                return {"status": "not_found", "error": f"keine email mit '{sender_filter}' gefunden"}
+            
+            logger.info(f"Email geöffnet: {sender_filter}")
+            return {"status": "success", "clicked": result}
+            
+        except Exception as e:
+            logger.error(f"Email öffnen fehlgeschlagen: {e}")
+            return {"status": "error", "error": str(e)}
 
     async def check_session(self, cdp_port: int = 9222) -> Dict[str, Any]:
         """Check GMX session WITHOUT page.goto (killt Session).
