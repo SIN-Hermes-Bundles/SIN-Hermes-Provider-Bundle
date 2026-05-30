@@ -1,3 +1,4 @@
+# Docs: fireworks_service.doc.md
 """
 SINATOR — Fireworks Service V6 (Playwright+CUA + Fallback, 2026-05-22)
 
@@ -85,21 +86,15 @@ async def signup_fireworks(email: str, password: str) -> Dict[str, Any]:
                 steps.append("create_clicked")
             
             # Step 2: Poll for OTP email via read_otp (CDP-based, proven)
+            # read_otp handled den kompletten Polling-Zyklus (25×8s = 200s max)
+            # WICHTIG: KEIN outer loop — read_otp pollt intern. page.reload() killt GMX Session,
+            # daher verwendet read_otp jetzt page.goto() statt reload (siehe gmx_service.py)
             logger.info("Waiting for Fireworks verification email...")
-            verify_url = None
             from agent_toolbox.core.gmx_service import GmxService
             svc = GmxService()
             
-            # Extended polling: 25 attempts × 8s = 200s max (Fireworks emails can be slow)
-            for attempt in range(25):
-                await asyncio.sleep(8)
-                otp_result = await svc.read_otp(sender_filter="fireworks", max_retries=25, retry_delay=8)
-                if otp_result.get("status") == "success":
-                    verify_url = otp_result.get("url") or otp_result.get("otp_url")
-                    if verify_url:
-                        logger.info(f"✅ OTP found (attempt {attempt+1})")
-                        break
-                logger.info(f"OTP poll {attempt+1}/25...")
+            otp_result = await svc.read_otp(sender_filter="fireworks", max_retries=25, retry_delay=8)
+            verify_url = otp_result.get("url") or otp_result.get("otp_url")
             
             if verify_url:
                 steps.append("otp_found")
@@ -124,22 +119,6 @@ async def signup_fireworks(email: str, password: str) -> Dict[str, Any]:
                 "verify_url": None,
                 "steps_completed": steps,
                 "error": "OTP email not found after 200s — account may be unverified but loginable",
-            }
-            
-            steps.append("otp_found")
-            
-            # Step 3: Verify account
-            verified = await verify_account(verify_url)
-            if verified:
-                steps.append("account_verified")
-                logger.info("✅ Account verified")
-            else:
-                steps.append("verify_failed")
-            
-            return {
-                "status": "success",
-                "verify_url": verify_url,
-                "steps_completed": steps,
             }
             
     except Exception as e:

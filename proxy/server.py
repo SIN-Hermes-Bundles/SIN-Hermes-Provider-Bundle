@@ -1,3 +1,4 @@
+# Docs: server.doc.md
 """
 Fireworks Pool Proxy — aiohttp-based async proxy with SSE streaming.
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Docs: rotate.doc.md
 """
 SINator - Rotation Tool V7 (2026-05-28)
 

@@ -278,7 +278,7 @@ Build: `cd ~/dev/SINator-dashboard && ./build.sh` → /Applications/SINator.app
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **SIN-Hermes-Provider-Bundle** (3212 symbols, 4952 relationships, 133 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **SIN-Hermes-Provider-Bundle** (3253 symbols, 5007 relationships, 133 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -338,3 +338,29 @@ Simone MCP bietet zusätzliche Code-Analyse-Tools via MCP:
 - `sin_simone_mcp_find_references` vor Refactoring
 - `sin_simone_mcp_project_overview` für schnellen Codebase-Überblick
 - `sin_simone_mcp_structural_edit` für sichere, strukturierte Edits
+
+---
+
+## 🔧 AKTUELLE FIXES (2026-05-30) — OTP/GMX Inbox Read
+
+### GMX Inbox = Cross-Origin Iframe (webmailer.gmx.net)
+- Die Mail-Liste lädt NICHT im Hauptdokument, sondern in cross-origin iframe `webmailer.gmx.net`
+- Playwright `frame.evaluate()` funktioniert NICHT bei cross-origin (CORS)
+- Fix: CDP `attach_to_iframe("webmailer.gmx.net")` + `Runtime.evaluate`
+
+### GMX Shadow DOM
+- `<list-mail-box>` → `<list-mail-item>` in 3 Ebenen Shadow DOM
+- Playwright Locators finden 0 Items
+- Fix: CDP `Runtime.evaluate` mit JS `querySelectorAll` + `shadowRoot` Traversal
+
+### OTP Flow
+1. `_ensure_gmx_inbox()` — einmalig zur Inbox navigieren
+2. KEIN `page.reload()` / `page.goto()` mehr (killt Session)
+3. CDP `attach_to_iframe("webmailer.gmx.net")` für cross-origin
+4. JS Shadow DOM Walk + `.click()` auf `list-mail-item`
+5. `Runtime.evaluate("document.body.innerText")` für URL
+6. Fallback: CDP `attach_to_iframe("mailbody-ui.de")` OOPIF
+
+### read_otp() Loop-Fix
+- Vorher: Outer loop 25× `(sleep 8s + read_otp(max_retries=25))` = 5200s max
+- Nachher: Single `read_otp(max_retries=25, retry_delay=8)` = 200s max

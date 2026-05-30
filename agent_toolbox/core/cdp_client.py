@@ -1,3 +1,4 @@
+# Docs: cdp_client.doc.md
 """
 SINATOR AGENT-TOOLBOX — Raw CDP Client (Vereinfacht v2026-05-28)
 

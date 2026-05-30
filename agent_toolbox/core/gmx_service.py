@@ -1,3 +1,4 @@
+# Docs: gmx_service.doc.md
 """
 SINATOR AGENT-TOOLBOX — GMX Service (Playwright-native v2026-05-28)
 
@@ -685,94 +686,193 @@ class GmxService:
     # ── OTP / Confirm URL ───────────────────────────────────────────────────
     # OTP bleibt auf CDP — funktioniert, komplex (MailCheck Extension, OOPIF)
 
+    async def _cdp_extract_url_from_email_body(self, cdp_port: int) -> Optional[str]:
+        """After clicking the email, extract Fireworks verify URL from the email body.
+        
+        The opened email loads in an OOPIF from gmxnet.mailbody-ui.de.
+        Find that iframe target, attach to it, and extract the URL from its content.
+        """
+        try:
+            ws_url = await get_browser_ws_endpoint(cdp_port)
+            cdp = CDPClient(ws_url)
+            await cdp.connect()
+            try:
+                # Try mailbody-ui.de OOPIF — attach directly by target type + url
+                attached = await cdp.attach_to_iframe("mailbody-ui.de")
+                if attached:
+                    child_sid, target = attached
+                    text = await cdp.evaluate(child_sid, "document.body.innerText")
+                    body = text.get("result", {}).get("value", "")
+                    if body:
+                        urls = re.findall(r'https://app\.fireworks\.ai/[^\s"\'<>]+', body)
+                        candidates = [u for u in urls if any(
+                            k in u.lower() for k in ["confirm", "verify", "token", "auth", "activate", "signup"])]
+                        if candidates:
+                            return html_module.unescape(candidates[0])
+                
+                # Fallback: search all navigator.gmx.net pages for fireworks URL
+                targets = await cdp.get_targets()
+                for t in targets:
+                    url = t.get("url", "")
+                    if t.get("type") == "page" and ("navigator.gmx.net" in url or "mailbody" in url):
+                        sid = await cdp.attach_to_target(t["targetId"])
+                        text = await cdp.evaluate(sid, "document.body.innerText")
+                        result = text.get("result", {}).get("value", "")
+                        urls = re.findall(r'https://app\.fireworks\.ai/[^\s"\'<>]+', str(result))
+                        candidates = [u for u in urls if any(
+                            k in u.lower() for k in ["confirm", "verify", "token", "auth", "activate", "signup"])]
+                        if candidates:
+                            return html_module.unescape(candidates[0])
+                return None
+            finally:
+                await cdp.disconnect()
+        except Exception as e:
+            logger.debug(f"CDP URL extraction failed: {e}")
+            return None
+
+    async def _ensure_gmx_inbox(self, page: Page) -> bool:
+        """Navigate to GMX inbox ONCE and keep it there.
+        
+        Returns True if on inbox page. Uses the same page — navigates
+        from www.gmx.net by clicking 'E-Mail' or 'Zum Postfach'.
+        """
+        url = page.url
+        if "navigator.gmx.net" in url and "mail?sid=" in url:
+            return True
+        if "bap.navigator.gmx.net" in url and "mail?sid=" in url:
+            return True
+        
+        logger.info("Navigating to GMX inbox...")
+        try:
+            await page.goto("https://www.gmx.net/", wait_until="domcontentloaded")
+            await asyncio.sleep(3)
+            
+            text = await page.evaluate("() => document.body.innerText")
+            
+            # Already logged in — click "Zum Postfach"
+            if "Sie sind eingeloggt" in text or "Zum Postfach" in text:
+                logger.info("Already logged in, clicking Zum Postfach")
+                try:
+                    await page.locator('text=Zum Postfach').first.click()
+                    await asyncio.sleep(5)
+                    if "navigator.gmx.net" in page.url or "bap.navigator.gmx.net" in page.url:
+                        return True
+                except:
+                    pass
+            
+            # Click "E-Mail" button
+            for _ in range(5):
+                try:
+                    await page.locator('a:has-text("E-Mail")').first.click()
+                    await asyncio.sleep(5)
+                    if "navigator.gmx.net" in page.url or "bap.navigator.gmx.net" in page.url:
+                        return True
+                except:
+                    await asyncio.sleep(2)
+            
+            # Direct navigation
+            await page.goto("https://navigator.gmx.net/mail", wait_until="domcontentloaded")
+            await asyncio.sleep(4)
+            return ("navigator.gmx.net" in page.url or "bap.navigator.gmx.net" in page.url)
+        except Exception as e:
+            logger.error(f"Navigate to inbox failed: {e}")
+            return False
+
     async def read_otp(self, sender_filter: str = "fireworks", max_retries: int = 25, retry_delay: int = 8, cdp_port: int = 9222) -> Dict[str, Any]:
         start_time = time.time()
         try:
             page = await self._pw_connect(cdp_port)
             
-            # Ensure we're in the GMX inbox
-            current_url = page.url
-            logger.info(f"Current URL: {current_url}")
-            if "navigator.gmx.net" not in current_url and "bap.navigator.gmx.net" not in current_url:
-                logger.info("Navigating to GMX inbox...")
-                await page.goto("https://www.gmx.net/", wait_until="domcontentloaded")
-                await asyncio.sleep(3)
-                for _ in range(5):
-                    try:
-                        await page.locator('a:has-text("E-Mail")').first.click()
-                        await asyncio.sleep(5)
-                        break
-                    except:
-                        await asyncio.sleep(2)
+            # Einmalig zur GMX Inbox navigieren — danach KEIN page.reload/page.goto mehr!
+            if not await self._ensure_gmx_inbox(page):
+                return {"status": "not_logged_in", "otp_url": None, "error": "Konnte nicht zur GMX Inbox navigieren"}
             
-            logger.info(f"Inbox URL: {page.url}")
+            logger.info(f"Inbox URL: {page.url[:80]}")
             
-            # Poll for email
+            # CDP Client für webmailer iframe + Shadow DOM
+            ws_url = await get_browser_ws_endpoint(cdp_port)
+            
+            # Poll for email (via CDP im webmailer iframe)
             for attempt in range(max_retries):
                 logger.info(f"OTP search attempt {attempt+1}/{max_retries}")
                 
-                # Refresh page to see new emails
-                if attempt > 0:
-                    try:
-                        await page.reload(wait_until="domcontentloaded")
-                        await asyncio.sleep(3)
-                    except:
-                        pass
-                
-                # Strategy: Find any element containing 'fireworks' and click it
+                # Connect CDP and attach to webmailer iframe
+                cdp = CDPClient(ws_url)
+                await cdp.connect()
                 try:
-                    # First, try to find the email by text content
-                    elements = await page.locator('text=/fireworks/i').all()
-                    logger.info(f"Found {len(elements)} elements with 'fireworks' text")
-                    
-                    if elements:
-                        for el in elements:
-                            try:
-                                await el.click()
-                                logger.info("Clicked on fireworks element")
-                                await asyncio.sleep(5)
-                                break
-                            except:
-                                pass
-                except Exception as e:
-                    logger.info(f"Text search failed: {e}")
-                
-                # Strategy 2: Try list-mail-item
-                try:
-                    items = await page.locator('list-mail-item').all()
-                    logger.info(f"Found {len(items)} list-mail-item elements")
-                    
-                    for item in items:
-                        text = await item.text_content() or ""
-                        if sender_filter.lower() in text.lower():
-                            logger.info(f"Clicking list-mail-item with fireworks text")
-                            await item.click()
+                    # Attach to webmailer iframe (cross-origin, CDP hat keine CORS Limits)
+                    attached = await cdp.attach_to_iframe("webmailer.gmx.net")
+                    if attached:
+                        wm_sid, wm_target = attached
+                        # Enable runtime for JS evaluation
+                        try: await cdp.send_to_session(wm_sid, "Runtime.enable")
+                        except: pass
+                        
+                        # Search + click via JS evaluate in webmailer context
+                        result = await cdp.evaluate(wm_sid, f"""(function() {{
+                            const query = '{sender_filter}'.toLowerCase();
+                            function walk(root, depth) {{
+                                if (depth > 5) return null;
+                                if (!root || typeof root.querySelectorAll !== 'function') return null;
+                                const all = root.querySelectorAll('*');
+                                for (let i = 0; i < all.length; i++) {{
+                                    const el = all[i];
+                                    const text = (el.textContent || '').toLowerCase();
+                                    if (text.includes(query)) {{
+                                        let target = el;
+                                        for (let j = 0; j < 5; j++) {{
+                                            if (!target) break;
+                                            const tag = (target.tagName || '').toLowerCase();
+                                            const role = (target.getAttribute('role') || '').toLowerCase();
+                                            if (tag === 'list-mail-item' || role === 'row' || role === 'link') {{
+                                                target.click();
+                                                return {{clicked: true, tag: tag}};
+                                            }}
+                                            target = target.parentElement;
+                                        }}
+                                        try {{ el.click(); return {{clicked: true, method: 'direct'}}; }} catch(e) {{}}
+                                    }}
+                                    if (el.shadowRoot) {{
+                                        const found = walk(el.shadowRoot, depth + 1);
+                                        if (found && found.clicked) return found;
+                                    }}
+                                }}
+                                return null;
+                            }}
+                            return walk(document, 0);
+                        }})()""")
+                        
+                        clicked = result and result.get("result", {}).get("value", {}).get("clicked")
+                        
+                        if clicked:
+                            logger.info("Clicked email in webmailer via CDP")
                             await asyncio.sleep(5)
-                            break
+                            
+                            # Extract URL from webmailer
+                            text_result = await cdp.evaluate(wm_sid, "document.body.innerText")
+                            body_text = text_result.get("result", {}).get("value", "")
+                            urls = re.findall(r'https://app\.fireworks\.ai/[^\s"\'<>]+', body_text)
+                            candidates = [u for u in urls if any(
+                                k in u.lower() for k in ["confirm", "verify", "token", "auth", "activate", "signup"])]
+                            if candidates:
+                                confirm_url = html_module.unescape(candidates[0])
+                                logger.info(f"OTP URL found via webmailer: {confirm_url[:80]}...")
+                                return {{
+                                    "status": "success",
+                                    "otp_url": confirm_url,
+                                    "execution_time": f"{time.time()-start_time:.2f}s"
+                                }}
+                    else:
+                        logger.info("webmailer iframe not yet found, retrying...")
                 except Exception as e:
-                    logger.info(f"list-mail-item failed: {e}")
+                    logger.debug(f"Webmailer CDP attempt failed: {e}")
+                finally:
+                    await cdp.disconnect()
                 
-                # Extract all text from page and frames
-                all_text = ""
-                try:
-                    all_text += await page.evaluate("() => document.body.innerText") or ""
-                except:
-                    pass
-                
-                for frame in page.frames:
-                    try:
-                        frame_text = await frame.evaluate("() => document.body.innerText") or ""
-                        all_text += "\n" + frame_text
-                    except:
-                        pass
-                
-                # Search for Fireworks verify URLs
-                urls = re.findall(r'https://app\.fireworks\.ai/[^\s"\'<>]+', all_text)
-                candidates = [u for u in urls if any(k in u.lower() for k in ["confirm", "verify", "token", "auth", "activate", "signup"])]
-                
-                if candidates:
-                    confirm_url = html_module.unescape(candidates[0])
-                    logger.info(f"OTP URL found: {confirm_url[:80]}...")
+                # Also try CDP mailbody extraction (for already-opened emails)
+                confirm_url = await self._cdp_extract_url_from_email_body(cdp_port)
+                if confirm_url:
+                    logger.info(f"OTP URL found via OOPIF: {confirm_url[:80]}...")
                     return {
                         "status": "success",
                         "otp_url": confirm_url,
@@ -780,7 +880,7 @@ class GmxService:
                     }
                 
                 if attempt < max_retries - 1:
-                    logger.info(f"No URL found, waiting {retry_delay}s...")
+                    logger.info(f"No URL yet, waiting {retry_delay}s...")
                     await asyncio.sleep(retry_delay)
             
             logger.warning("OTP email not found after all attempts")
