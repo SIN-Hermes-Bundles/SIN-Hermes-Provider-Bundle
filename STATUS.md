@@ -140,15 +140,30 @@ Fix: CDP `Runtime.evaluate` verwenden, nicht `page.goto()`
 
 ---
 
-## 5. Co-Docs Status ✅
+## 5. Co-Docs Status ✅ (18/18 files — 100% coverage)
 
 | Datei | Doc.md | Status |
 |-------|--------|--------|
-| `agent_toolbox/core/gmx_service.py` | `gmx_service.doc.md` | ✅ |
-| `agent_toolbox/core/fireworks_service.py` | `fireworks_service.doc.md` | ✅ |
+| `agent_toolbox/core/fireworks_service.py` | `fireworks_service.doc.md` | ✅ V15.1 |
+| `agent_toolbox/core/gmx_service.py` | `gmx_service.doc.md` | ✅ V15.1 |
 | `agent_toolbox/core/cdp_client.py` | `cdp_client.doc.md` | ✅ |
 | `agent_toolbox/core/pool_manager.py` | `pool_manager.doc.md` | ✅ |
-| `tools/rotate.py` | `rotate.doc.md` | ✅ |
+| `agent_toolbox/core/config_manager.py` | `config_manager.doc.md` | ✅ NEW |
+| `agent_toolbox/core/keychain_store.py` | `keychain_store.doc.md` | ✅ NEW |
+| `agent_toolbox/core/cua_helper.py` | `cua_helper.doc.md` | ✅ NEW |
+| `agent_toolbox/api/schemas.py` | `schemas.doc.md` | ✅ NEW |
+| `agent_toolbox/api/routes/pool.py` | `pool.doc.md` | ✅ NEW |
+| `agent_toolbox/api/routes/rotation.py` | `rotation.doc.md` | ✅ NEW |
+| `agent_toolbox/api/routes/gmx.py` | `gmx.doc.md` | ✅ NEW |
+| `agent_toolbox/api/routes/fireworks.py` | `fireworks.doc.md` | ✅ NEW |
+| `agent_toolbox/api/routes/config.py` | `config.doc.md` | ✅ NEW |
+| `agent_toolbox/start_toolbox.py` | `start_toolbox.doc.md` | ✅ NEW |
+| `proxy/pool_client.py` | `pool_client.doc.md` | ✅ NEW |
+| `proxy/config.py` | `config.doc.md` | ✅ NEW |
+| `proxy/key_cache.py` | `key_cache.doc.md` | ✅ NEW |
+| `tools/rotate.py` | `rotate.doc.md` | ✅ V15.1 |
+| `tools/open_gmx_email.py` | `open_gmx_email.doc.md` | ✅ NEW |
+| `tools/batch_rotate.py` | `batch_rotate.doc.md` | ✅ NEW |
 | `proxy/server.py` | `server.doc.md` | ✅ |
 
 ---
