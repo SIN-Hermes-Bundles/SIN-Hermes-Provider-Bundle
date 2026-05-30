@@ -168,6 +168,8 @@ class FireworksRegisterResponse(BaseModel):
 class FireworksApiKeyRequest(BaseModel):
     """Request für Fireworks API-Key-Erstellung."""
     key_name: str = Field(default="sinator-key", description="Name für den API-Key")
+    email: Optional[str] = Field(default=None, description="Fireworks Account Email (für Session Reuse)")
+    password: Optional[str] = Field(default=None, description="Fireworks Account Passwort (für Session Reuse)")
 
 
 class FireworksApiKeyResponse(BaseModel):

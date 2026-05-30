@@ -18,8 +18,8 @@ Fireworks AI API Endpoints: Login + API Key Erstellung. FastAPI Router unter `/f
 
 ## Wichtige Entscheidungen
 
-- **⚠️ API Route verwendet `create_api_key(request.key_name)` OHNE Session Reuse:** Diese Route erstellt eine neue Page — kein Session Reuse vom Login. Kann zu `/login` Redirect führen!
-- **login_fireworks gibt `page, playwright, browser` zurück** (V15.1) aber diese Route ignoriert das — bug wartend
+- **Session Reuse (V15.1 FIX):** Wenn `email`+`password` im Request → `login_fireworks()` zuerst → `page+playwright+browser` an `create_api_key()` übergeben
+- **Backward-Compatible:** Ohne `email`/`password` → alte Logik (neue Page) — aber Redirect zu `/login` möglich
 - **Kein Signup-Endpoint:** nur Login + API Key — Signup läuft direkt via `tools/rotate.py`
 
 ## Flow
@@ -30,12 +30,14 @@ POST /fireworks/login {email, password}
   → Playwright Login + CUA Onboarding + Playwright Fallback
   → FireworksRegisterResponse
 
-POST /fireworks/apikey {key_name}
-  → create_api_key(key_name)  ← ⚠️ NEUE Page, keine Session Reuse!
+POST /fireworks/apikey {key_name, email?, password?}
+  → Wenn email+password: login_fireworks() → Session Reuse
+  → create_api_key(key_name, page=..., playwright=..., browser=...)
   → Playwright API Key Page → Create → Generate → Extract
   → FireworksApiKeyResponse
 ```
 
-## Bug-Warnung
+## Fixed (V15.1)
 
-Die `/fireworks/apikey` Route ruft `create_api_key(request.key_name)` OHNE die optionalen Session-Parameter (`page`, `playwright`, `browser`) auf. Wenn diese Route nach `/fireworks/login` aufgerufen wird, hat die neue Page keine Cookies → API Key Seite redirected zu `/login`.
+**Vorher:** `create_api_key(request.key_name)` — neue Page, keine Session → `/login` Redirect.
+**Nachher:** Wenn `email`+`password` im Request → Login zuerst + Session Reuse. Ohne Credentials → alte Logik.
