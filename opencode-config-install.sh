@@ -105,11 +105,6 @@ else:
 
 cfg.setdefault("provider", {})["fireworks-ai"] = template_fw
 
-if "defaultModel" not in cfg:
-    cfg["defaultModel"] = "fireworks-ai/deepseek-v4-pro"
-if "defaultAgent" not in cfg:
-    cfg["defaultAgent"] = "SIN-Zeus"
-
 with open(config_path, 'w') as f:
     json.dump(cfg, f, indent=2)
     f.write('\n')

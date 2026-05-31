@@ -80,18 +80,10 @@ if can_load:
     if "$schema" not in cfg:
         cfg["$schema"] = "https://opencode.ai/config.json"
     cfg.setdefault("provider", {})["fireworks-ai"] = template_fw
-    if "defaultModel" not in cfg:
-        cfg["defaultModel"] = "fireworks-ai/deepseek-v4-pro"
-    if "defaultAgent" not in cfg:
-        cfg["defaultAgent"] = "SIN-Zeus"
 else:
     print("Config broken or missing — creating fresh from template")
     cfg = template.copy()
     cfg["provider"]["fireworks-ai"]["options"]["apiKey"] = api_key
-    if "defaultModel" not in cfg:
-        cfg["defaultModel"] = "fireworks-ai/deepseek-v4-pro"
-    if "defaultAgent" not in cfg:
-        cfg["defaultAgent"] = "SIN-Zeus"
 
 with open(config_path, 'w') as f:
     json.dump(cfg, f, indent=2)

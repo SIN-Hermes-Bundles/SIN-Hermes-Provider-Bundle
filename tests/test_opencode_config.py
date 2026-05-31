@@ -122,8 +122,6 @@ class TestInstall:
             cfg = _run_install(td)
             _assert_valid(cfg, "fresh")
             _assert_provider_matches(cfg["provider"]["fireworks-ai"], "fresh")
-            assert cfg["defaultModel"] == "fireworks-ai/deepseek-v4-pro"
-            assert cfg["defaultAgent"] == "SIN-Zeus"
 
     def test_merge(self):
         with tempfile.TemporaryDirectory() as td:
@@ -229,8 +227,6 @@ class TestRepair:
             cfg = _run_repair(td, existing_config='{ this is broken json !!!', broken=True)
             _assert_valid(cfg, "repair_broken")
             _assert_provider_matches(cfg["provider"]["fireworks-ai"], "repair_broken")
-            assert cfg["defaultModel"] == "fireworks-ai/deepseek-v4-pro"
-            assert cfg["defaultAgent"] == "SIN-Zeus"
 
     def test_merge(self):
         with tempfile.TemporaryDirectory() as td:
@@ -270,7 +266,6 @@ class TestRepair:
             cfg = _run_repair(td)
             _assert_valid(cfg, "repair_noconfig")
             _assert_provider_matches(cfg["provider"]["fireworks-ai"], "repair_noconfig")
-            assert cfg["defaultModel"] == "fireworks-ai/deepseek-v4-pro"
 
     def test_apikey(self):
         with tempfile.TemporaryDirectory() as td:
