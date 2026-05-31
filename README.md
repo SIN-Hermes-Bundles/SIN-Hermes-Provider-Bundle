@@ -98,10 +98,12 @@ curl https://sinatorpool-router.delqhi.com/inference/v1/models \
 
 | Datei | Zweck |
 |-------|-------|
-| `opencode.json` | Provider-Konfiguration (Single Source of Truth) |
+| `opencode.json` | Provider-Konfiguration (617 Zeilen, Single Source of Truth) |
+| `config.example.json` | Minimal-Beispiel der Config-Struktur (1 Modell) |
 | `opencode-config-install.sh` | One-Liner Installer für OpenCode CLI |
 | `opencode-config-repair.sh` | Emergency Repair für broken `opencode.json` |
 | `INSTALL.md` | Detaillierte Install-Optionen + Troubleshooting |
+| `requirements.txt` | Python-Deps für Tests (`pytest`) |
 | `tests/test_opencode_config.py` | Test-Suite (19 Tests, 18 passed) |
 
 ---
