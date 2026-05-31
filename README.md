@@ -102,7 +102,7 @@ curl https://sinatorpool-router.delqhi.com/inference/v1/models \
 | `opencode-config-install.sh` | One-Liner Installer für OpenCode CLI |
 | `opencode-config-repair.sh` | Emergency Repair für broken `opencode.json` |
 | `INSTALL.md` | Detaillierte Install-Optionen + Troubleshooting |
-| `tests/test_opencode_config.py` | Test-Suite (19 Tests) |
+| `tests/test_opencode_config.py` | Test-Suite (19 Tests, 18 passed) |
 
 ---
 

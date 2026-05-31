@@ -1,14 +1,14 @@
 {
-  "repoPath": "/Users/jeremy/dev/SINator-fireworksai",
-  "lastCommit": "934278325a65d8391224c4a7facea491f933e8b0",
+  "repoPath": "/Users/jeremy/dev/SIN-Hermes-Provider-Bundle",
+  "lastCommit": "",
   "indexedAt": "2026-05-30T01:25:43.379Z",
   "remoteUrl": "git@github.com:SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle",
   "stats": {
-    "files": 93,
-    "nodes": 3253,
-    "edges": 5007,
-    "communities": 80,
-    "processes": 133,
+    "files": 10,
+    "nodes": 0,
+    "edges": 0,
+    "communities": 0,
+    "processes": 0,
     "embeddings": 0
   }
 }

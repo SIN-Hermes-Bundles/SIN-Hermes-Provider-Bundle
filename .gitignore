@@ -1,19 +1,10 @@
-# Environment
-.env
-*.log
-logs/
+# macOS
 .DS_Store
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
-.env.local
-
-# Data (secrets - never commit)
-data/
-*.json
-
-# Chrome profiles (huge, temporary)
-/tmp/sinator-chrome-*/
 
 # IDE
 .vscode/
@@ -21,40 +12,13 @@ data/
 *.swp
 *.swo
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Dependencies
-node_modules/
-
-# Build artifacts
-dist/
-build/
-*.egg-info/
-
-# Caches
+# Cache
 .pytest_cache/
 .ruff_cache/
-.memories/
 
-# GitNexus knowledge graph (auto-generated)
-.gitnexus/
+# GitNexus index (auto-generated, don't commit)
+.gitnexus/lbug
 
-# Legacy dirs (removed from repo)
-deprecated/
-config/
-debug/
-docs/
-plans/
-SIN-Code-*/
-
-# Temp scripts
-tools/test_otp_mailcheck.py
-
-# OpenCode config (user-specific, not project)
-opencode.json
-
-# Tunnel scripts (legacy — DNS record replaces)
-tools/sinator_tunnel.sh
-tools/start_tunnel.sh
+# User config (never commit)
+.env
+.env.local

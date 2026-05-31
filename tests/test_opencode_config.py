@@ -3,8 +3,8 @@
 
 Runs the ACTUAL shell scripts in isolated temp HOME directories.
 Verifies the generated opencode.json matches the reference config exactly.
-Uses INSTALLER_LOCAL=1 / REPAIR_LOCAL=1 so scripts read local opencode.json
-instead of downloading from GitHub (avoids 404 during dev).
+Uses INSTALLER_LOCAL_FILE / REPAIR_LOCAL_FILE env vars so scripts read local
+opencode.json template instead of downloading from GitHub (avoids 404 during dev).
 """
 import json
 import os
