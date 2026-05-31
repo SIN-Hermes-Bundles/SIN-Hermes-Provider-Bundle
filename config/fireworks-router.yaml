@@ -1,0 +1,32 @@
+# Hermes Config — Fireworks AI Pool
+# Base URL: https://sinatorpool-router.delqhi.com/inference/v1
+model:
+  default: fireworks/deepseek-v4-pro
+  provider: custom:fireworks
+  supports_vision: true
+auxiliary:
+  vision:
+    provider: custom:fireworks
+    model: fireworks/kimi-k2p6
+    timeout: 120
+custom_providers:
+- name: fireworks
+  base_url: https://sinatorpool-router.delqhi.com/inference/v1
+  key_env: FIREWORKS_AI_API_KEY
+toolsets:
+- web
+- terminal
+- file
+- browser
+- vision
+- memory
+- todo
+- skills
+- delegation
+- code_execution
+terminal:
+  backend: local
+  cwd: .
+  timeout: 120
+agent:
+  max_turns: 999999

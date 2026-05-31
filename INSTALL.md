@@ -1,69 +1,45 @@
-# INSTALL.md — SIN-Hermes-Provider-Bundle
-
-Fireworks AI Pool-Konfiguration für OpenCode CLI. Nichts wird lokal installiert — nur eine Config-Datei heruntergeladen.
+# INSTALL.md — Hermes Fireworks AI Config
 
 ---
 
 ## Option 1: Copy & Paste (empfohlen)
 
 ```bash
-mkdir -p ~/.config/opencode
-curl -fsSL https://raw.githubusercontent.com/SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle/main/opencode.json -o ~/.config/opencode/opencode.json
+mkdir -p ~/.hermes
+curl -fsSL https://raw.githubusercontent.com/SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle/main/config/fireworks-router.yaml -o ~/.hermes/config.yaml
+hermes auth add custom:fireworks --type api-key --api-key "$FIREWORKS_AI_API_KEY"
 ```
 
-API-Key eintragen (`fw_DEIN_KEY` durch echten Key ersetzen):
+## Option 2: Environment Variable
 
 ```bash
-sed -i '' 's/fw_DEIN_KEY/fw_DEIN_ECHTER_KEY/' ~/.config/opencode/opencode.json
+export FIREWORKS_AI_API_KEY="fw_DEIN_KEY"
+# Config automatisch: ~/.hermes/config.yaml
 ```
-
-Testen:
-
-```bash
-opencode chat --provider fireworks-ai --model deepseek-v4-pro
-```
-
-## Option 2: One-Liner Installer
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle/main/opencode-config-install.sh | bash -s -- --api-key fw_DEIN_KEY
-```
-
-Bestehende Settings bleiben erhalten. Fireworks Provider + 12 Modelle werden hinzugefügt.
-
-## Option 3: Config kaputt? Repair
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle/main/opencode-config-repair.sh | bash
-```
-
-Bewahrt alle bestehenden Settings. Wenn die Datei komplett kaputt ist, erstellt es eine neue mit allen 12 Modellen.
 
 ---
 
 ## Prerequisites
 
 - macOS oder Linux
-- `bash`, `curl`, `python3` (vorinstalliert auf macOS)
+- `curl`, `bash`
 - Fireworks API Key (`fw_...`)
-- OpenCode CLI (`npm i -g opencode`)
+- Hermes CLI (`pip install hermes`)
 
 ---
 
 ## Verifikation
 
 ```bash
-# Config ist gültiges JSON?
-python3 -c "import json; json.load(open('$HOME/.config/opencode/opencode.json'))" && echo "OK"
-
-# 12 Modelle vorhanden?
-python3 -c "import json; print(len(json.load(open('$HOME/.config/opencode/opencode.json'))['provider']['fireworks-ai']['models']), 'Modelle')"
+# Config ist gültiges YAML?
+python3 -c "import yaml; yaml.safe_load(open('$HOME/.hermes/config.yaml')); print('OK')"
 
 # Pool-Router erreichbar?
-curl -s https://sinatorpool-router.delqhi.com/inference/v1/models | head -5
+curl -s https://sinatorpool-router.delqhi.com/inference/v1/models \
+  -H "Authorization: Bearer $FIREWORKS_AI_API_KEY"
 
-# OpenCode funktioniert?
-opencode chat --provider fireworks-ai --model deepseek-v4-pro
+# Hermes funktioniert?
+hermes chat --model fireworks/deepseek-v4-pro -p "hallo"
 ```
 
 ---
@@ -72,9 +48,8 @@ opencode chat --provider fireworks-ai --model deepseek-v4-pro
 
 | Problem | Fix |
 |---------|-----|
-| `opencode` startet nicht | `opencode.json` kaputt → Option 3 (Repair) |
-| `401 Unauthorized` | API-Key falsch → `fw_DEIN_KEY` ersetzen |
+| `hermes auth add` unbekannt | `hermes --help` → Subcommand prüfen |
+| `401 Unauthorized` | `FIREWORKS_AI_API_KEY` falsch oder nicht gesetzt |
 | `503 Service Unavailable` | Pool-Router down → später nochmal |
-| JSON Parse Error | Repair-Script (Option 3) |
-| Weniger als 12 Modelle | Alte Config → Option 1 oder 2 neu ausführen |
-| `temperature != 0` | Alte Config → Option 1 neu ausführen |
+| YAML Parse Error | Config neu laden (Option 1) |
+| `key_env` funktioniert nicht | API Key direkt in YAML setzen (nicht empfohlen) |
