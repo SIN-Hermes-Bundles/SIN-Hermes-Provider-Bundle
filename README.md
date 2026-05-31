@@ -108,4 +108,13 @@ curl https://sinatorpool-router.delqhi.com/inference/v1/models \
 
 ---
 
+---
+
+## Hermes?
+
+Für Hermes gibt's ein separates Config-Repo:
+→ [SIN-Code-FireworksAI-Hermes-Config](https://github.com/OpenSIN-Code/SIN-Code-FireworksAI-Hermes-Config)
+
+---
+
 *Stand: 2026-05-31 | Pool: 234 Keys | Pool-Router: sinatorpool-router.delqhi.com*
