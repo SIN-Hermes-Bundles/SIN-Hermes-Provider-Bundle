@@ -60,4 +60,4 @@ Für OpenCode CLI gibt's ein separates Config-Repo:
 
 ---
 
-*Stand: 2026-05-31 | Pool: 234 Keys | Pool-Router: sinatorpool-router.delqhi.com*
+*Stand: 2026-05-31 | Pool: 235 Keys (235 verfügbar) | Pool-Router: sinatorpool-router.delqhi.com*
