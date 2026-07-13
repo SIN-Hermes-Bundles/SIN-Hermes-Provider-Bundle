@@ -1,12 +1,12 @@
 {
   "repoPath": "/Users/jeremy/dev/SIN-Hermes-Provider-Bundle",
-  "lastCommit": "",
-  "indexedAt": "2026-05-30T01:25:43.379Z",
+  "lastCommit": "8102811cdd28dc5531a1668e628a2be5c736fc2d",
+  "indexedAt": "2026-05-31T01:36:40.078Z",
   "remoteUrl": "git@github.com:SIN-Hermes-Bundles/SIN-Hermes-Provider-Bundle",
   "stats": {
-    "files": 10,
-    "nodes": 0,
-    "edges": 0,
+    "files": 3,
+    "nodes": 20,
+    "edges": 17,
     "communities": 0,
     "processes": 0,
     "embeddings": 0
